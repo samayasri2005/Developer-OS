@@ -6,8 +6,9 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import Index from "@/views/Index";
 import NotFound from "@/views/NotFound";
-import Auth from "@/views/Auth";
 import Settings from "@/views/Settings";
+import SignIn from "@/views/SignIn";
+import SignUp from "@/views/SignUp";
 import Landing from "@/views/Landing";
 
 const queryClient = new QueryClient();
@@ -21,7 +22,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
       </div>
     );
   }
-  if (!user) return <Navigate to="/auth" replace />;
+  if (!user) return <Navigate to="/signin" replace />;
   return <>{children}</>;
 };
 
@@ -52,7 +53,10 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <Routes>
-            <Route path="/auth" element={<AuthRoute><Auth /></AuthRoute>} />
+            <Route path="/signin" element={<AuthRoute><SignIn /></AuthRoute>} />
+            <Route path="/signup" element={<AuthRoute><SignUp /></AuthRoute>} />
+            <Route path="/auth" element={<Navigate to="/signin" replace />} />
+            <Route path="/app" element={<Navigate to="/" replace />} />
             <Route path="/" element={<RootRoute />} />
             <Route
               path="/*"

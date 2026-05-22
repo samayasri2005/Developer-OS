@@ -17,7 +17,7 @@ const firebaseConfig = {
 
 export const isFirebaseConfigured = firebaseConfig.apiKey !== demoApiKey;
 export const firebaseSetupMessage =
-  "Firebase is not configured yet. Reuse the Personal Remainder App VITE_FIREBASE_* values here before signing in.";
+  "Firebase is not configured. Please set up your Firebase environment variables in the .env file before signing in.";
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
