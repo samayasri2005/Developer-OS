@@ -110,6 +110,10 @@
     --sidebar-foreground: 210 15% 80%;
     --sidebar-accent: 215 22% 13%;
     --sidebar-border: 215 22% 14%;
+    --gradient-page:
+      radial-gradient(900px 480px at 100% -10%, hsl(252 90% 66% / 0.06), transparent 60%),
+      radial-gradient(700px 400px at -10% 100%, hsl(188 90% 55% / 0.04), transparent 60%),
+      linear-gradient(180deg, hsl(210 30% 6%), hsl(210 28% 4%));
   }
 }
 
