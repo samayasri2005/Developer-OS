@@ -17,7 +17,7 @@ A premium, keyboard-first developer workspace, task manager, and productivity da
 
 ## 🛠️ Technology Stack
 
-*   **Frontend**: React 18.3, TypeScript, Vite, Tailwind CSS
+*   **Frontend**: Next JS 14, React 18.3, TypeScript, Vite, Tailwind CSS
 *   **State Management**: Zustand (with Firestore synchronization patterns)
 *   **Drag & Drop**: `@dnd-kit/core`, `@dnd-kit/sortable`
 *   **Utilities**: `date-fns` (time calculations, midnight tracking)

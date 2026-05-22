@@ -8,6 +8,7 @@ import Index from "@/views/Index";
 import NotFound from "@/views/NotFound";
 import Auth from "@/views/Auth";
 import Settings from "@/views/Settings";
+import Landing from "@/views/Landing";
 
 const queryClient = new QueryClient();
 
@@ -31,6 +32,18 @@ const AuthRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+const RootRoute = () => {
+  const { user, loading } = useAuth();
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-950">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" />
+      </div>
+    );
+  }
+  return user ? <Index /> : <Landing />;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -40,12 +53,12 @@ const App = () => (
         <AuthProvider>
           <Routes>
             <Route path="/auth" element={<AuthRoute><Auth /></AuthRoute>} />
+            <Route path="/" element={<RootRoute />} />
             <Route
               path="/*"
               element={
                 <ProtectedRoute>
                   <Routes>
-                    <Route path="/" element={<Index />} />
                     <Route path="/commands" element={<Index initialView="commands" />} />
                     <Route path="/settings" element={<Settings />} />
                     <Route path="*" element={<NotFound />} />
