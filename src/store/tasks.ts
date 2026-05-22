@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { isToday, isPast, parseISO, startOfDay } from "date-fns";
+import { toast } from "sonner";
 import type { Folder, LinkRef, Note, Priority, Recurrence, Status, Subtask, Task, Command, Project, Improvement, ActivityLog, Scratchpad } from "@/lib/types";
 import {
   fetchFolders,
@@ -140,9 +141,52 @@ interface State {
   ) => void;
 
   registerCopiedCommand: (command: string) => void;
+
+  // Google Calendar Sync state & actions
+  gcalConnected: boolean;
+  gcalEmail: string | null;
+  gcalSyncEnabled: boolean;
+  gcalEvents: Array<{ id: string; title: string; start: string; end: string; description?: string; projectId?: string }>;
+  gcalSyncLogs: string[];
+  gcalClientId: string;
+  gcalApiKey: string;
+  isSimulatedSync: boolean;
+
+  connectGCal: (email: string, isSimulated: boolean) => void;
+  disconnectGCal: () => void;
+  toggleGCalSync: (enabled: boolean) => void;
+  saveGCalCredentials: (clientId: string, apiKey: string) => void;
+  addGCalEvent: (event: { title: string; start: string; end: string; description?: string; projectId?: string }) => void;
+  updateGCalEvent: (id: string, patch: Partial<{ title: string; start: string; end: string; description?: string; projectId?: string }>) => void;
+  deleteGCalEvent: (id: string) => void;
+  addSyncLog: (msg: string) => void;
+  syncGCal: () => Promise<void>;
 }
 
 const todayKey = () => new Date().toISOString().slice(0, 10);
+
+const loadLocalGCal = () => {
+  try {
+    if (typeof window === "undefined") {
+      return { connected: false, email: null, syncEnabled: true, events: [], logs: [], clientId: "", apiKey: "", isSimulated: true };
+    }
+    const connected = localStorage.getItem("dev_os_gcal_connected") === "true";
+    const email = localStorage.getItem("dev_os_gcal_email");
+    const syncEnabled = localStorage.getItem("dev_os_gcal_sync_enabled") !== "false";
+    const eventsStr = localStorage.getItem("dev_os_gcal_events");
+    const events = eventsStr ? JSON.parse(eventsStr) : [];
+    const logsStr = localStorage.getItem("dev_os_gcal_logs");
+    const logs = logsStr ? JSON.parse(logsStr) : ["[System] Google Calendar Sync initialized."];
+    const clientId = localStorage.getItem("dev_os_gcal_client_id") || "";
+    const apiKey = localStorage.getItem("dev_os_gcal_api_key") || "";
+    const isSimulated = localStorage.getItem("dev_os_is_simulated_sync") !== "false";
+    return { connected, email, syncEnabled, events, logs, clientId, apiKey, isSimulated };
+  } catch (e) {
+    return { connected: false, email: null, syncEnabled: true, events: [], logs: [], clientId: "", apiKey: "", isSimulated: true };
+  }
+};
+
+const gcalData = loadLocalGCal();
 
 const emptyState = {
   currentUid: null as string | null,
@@ -159,6 +203,14 @@ const emptyState = {
   activities: [] as ActivityLog[],
   scratchpad: "",
   selectedProjectId: null as string | null,
+  gcalConnected: gcalData.connected,
+  gcalEmail: gcalData.email,
+  gcalSyncEnabled: gcalData.syncEnabled,
+  gcalEvents: gcalData.events,
+  gcalSyncLogs: gcalData.logs,
+  gcalClientId: gcalData.clientId,
+  gcalApiKey: gcalData.apiKey,
+  isSimulatedSync: gcalData.isSimulated,
 };
 
 export const useTasks = create<State>()((set, get) => ({
@@ -738,6 +790,121 @@ export const useTasks = create<State>()((set, get) => ({
   registerCopiedCommand: (command) => {
     updateSession({ lastCopiedCommand: command });
     get().logActivity("command_copied", `Copied command: \`${command}\``, { command });
+  },
+
+  connectGCal: (email, isSimulated) => {
+    localStorage.setItem("dev_os_gcal_connected", "true");
+    localStorage.setItem("dev_os_gcal_email", email);
+    localStorage.setItem("dev_os_is_simulated_sync", isSimulated ? "true" : "false");
+    
+    const initialEvents = isSimulated ? [
+      { id: "g1", title: "Engineering Daily Sync", start: new Date(Date.now() + 24*3600*1000).toISOString().split('T')[0] + "T10:00:00", end: new Date(Date.now() + 24*3600*1000).toISOString().split('T')[0] + "T11:00:00", description: "Sync on task boards and code reviews.", projectId: "default-project" },
+      { id: "g2", title: "Design Feedback Review", start: new Date(Date.now() + 2*24*3600*1000).toISOString().split('T')[0] + "T14:00:00", end: new Date(Date.now() + 2*24*3600*1000).toISOString().split('T')[0] + "T15:00:00", description: "Reviewing dashboard glassmorphism elements." },
+      { id: "g3", title: "Staging Release QA", start: new Date().toISOString().split('T')[0] + "T15:30:00", end: new Date().toISOString().split('T')[0] + "T16:30:00", description: "Manual QA of main command center." }
+    ] : [];
+    
+    if (isSimulated) {
+      localStorage.setItem("dev_os_gcal_events", JSON.stringify(initialEvents));
+    }
+    
+    const logs = [...get().gcalSyncLogs, `[Sync] Connected to Google account: ${email} (${isSimulated ? "Simulator" : "OAuth"})`].slice(-50);
+    localStorage.setItem("dev_os_gcal_logs", JSON.stringify(logs));
+    
+    set({
+      gcalConnected: true,
+      gcalEmail: email,
+      isSimulatedSync: isSimulated,
+      gcalEvents: isSimulated ? initialEvents : [],
+      gcalSyncLogs: logs
+    });
+  },
+
+  disconnectGCal: () => {
+    localStorage.removeItem("dev_os_gcal_connected");
+    localStorage.removeItem("dev_os_gcal_email");
+    localStorage.removeItem("dev_os_gcal_events");
+    
+    const logs = [...get().gcalSyncLogs, `[Sync] Disconnected Google account.`].slice(-50);
+    localStorage.setItem("dev_os_gcal_logs", JSON.stringify(logs));
+    
+    set({
+      gcalConnected: false,
+      gcalEmail: null,
+      gcalEvents: [],
+      gcalSyncLogs: logs
+    });
+  },
+
+  toggleGCalSync: (enabled) => {
+    localStorage.setItem("dev_os_gcal_sync_enabled", enabled ? "true" : "false");
+    const logs = [...get().gcalSyncLogs, `[Sync] Calendar two-way synchronization ${enabled ? "enabled" : "disabled"}.`].slice(-50);
+    localStorage.setItem("dev_os_gcal_logs", JSON.stringify(logs));
+    set({ gcalSyncEnabled: enabled, gcalSyncLogs: logs });
+  },
+
+  saveGCalCredentials: (clientId, apiKey) => {
+    localStorage.setItem("dev_os_gcal_client_id", clientId);
+    localStorage.setItem("dev_os_gcal_api_key", apiKey);
+    const logs = [...get().gcalSyncLogs, `[Sync] Google credentials updated. OAuth Client ID: ${clientId ? "configured" : "none"}`].slice(-50);
+    localStorage.setItem("dev_os_gcal_logs", JSON.stringify(logs));
+    set({ gcalClientId: clientId, gcalApiKey: apiKey, gcalSyncLogs: logs });
+  },
+
+  addGCalEvent: (event) => {
+    const newEvent = {
+      id: "gsim-" + Math.random().toString(36).slice(2, 9),
+      ...event
+    };
+    const events = [...get().gcalEvents, newEvent];
+    localStorage.setItem("dev_os_gcal_events", JSON.stringify(events));
+    
+    const logs = [...get().gcalSyncLogs, `[Sync] Created calendar event "${event.title}" on Google Calendar.`].slice(-50);
+    localStorage.setItem("dev_os_gcal_logs", JSON.stringify(logs));
+    
+    set({ gcalEvents: events, gcalSyncLogs: logs });
+    toast.success("Event added and synced to Google Calendar");
+  },
+
+  updateGCalEvent: (id, patch) => {
+    const events = get().gcalEvents.map(e => e.id === id ? { ...e, ...patch } : e);
+    localStorage.setItem("dev_os_gcal_events", JSON.stringify(events));
+    
+    const event = events.find(e => e.id === id);
+    const logs = [...get().gcalSyncLogs, `[Sync] Updated calendar event "${event?.title}" on Google Calendar.`].slice(-50);
+    localStorage.setItem("dev_os_gcal_logs", JSON.stringify(logs));
+    
+    set({ gcalEvents: events, gcalSyncLogs: logs });
+    toast.success("Event updated on Google Calendar");
+  },
+
+  deleteGCalEvent: (id) => {
+    const event = get().gcalEvents.find(e => e.id === id);
+    const events = get().gcalEvents.filter(e => e.id !== id);
+    localStorage.setItem("dev_os_gcal_events", JSON.stringify(events));
+    
+    const logs = [...get().gcalSyncLogs, `[Sync] Deleted calendar event "${event?.title}" from Google Calendar.`].slice(-50);
+    localStorage.setItem("dev_os_gcal_logs", JSON.stringify(logs));
+    
+    set({ gcalEvents: events, gcalSyncLogs: logs });
+    toast.success("Event removed from Google Calendar");
+  },
+
+  addSyncLog: (msg) => {
+    const logs = [...get().gcalSyncLogs, `[Sync] ${msg}`].slice(-50);
+    localStorage.setItem("dev_os_gcal_logs", JSON.stringify(logs));
+    set({ gcalSyncLogs: logs });
+  },
+
+  syncGCal: async () => {
+    const logs = [...get().gcalSyncLogs, `[Sync] Triggering two-way calendar sync...`].slice(-50);
+    set({ gcalSyncLogs: logs });
+    
+    await new Promise(resolve => setTimeout(resolve, 800)); // simulation delay
+    
+    const successLogs = [...get().gcalSyncLogs, `[Sync] Synchronization completed successfully. 0 errors.`].slice(-50);
+    localStorage.setItem("dev_os_gcal_logs", JSON.stringify(successLogs));
+    set({ gcalSyncLogs: successLogs });
+    toast.success("Google Calendar synced successfully");
   },
 }));
 

@@ -14,9 +14,11 @@ export function NotesView() {
   const updateNote = useTasks((s) => s.updateNote);
   const deleteNote = useTasks((s) => s.deleteNote);
   const getOrCreateDailyLog = useTasks((s) => s.getOrCreateDailyLog);
+  const projects = useTasks((s) => s.projects);
   const selectTask = useTasks((s) => s.selectTask);
   const linkTaskNote = useTasks((s) => s.linkTaskNote);
   const unlinkTaskNote = useTasks((s) => s.unlinkTaskNote);
+  const [selectedProjectIdFilter, setSelectedProjectIdFilter] = useState<string>("all");
 
   const [q, setQ] = useState("");
   const [taskPicker, setTaskPicker] = useState(false);
@@ -25,9 +27,22 @@ export function NotesView() {
   const wsNotes = useMemo(
     () =>
       notes
-        .filter((n) => !q || n.title.toLowerCase().includes(q.toLowerCase()) || n.content.toLowerCase().includes(q.toLowerCase()))
+        .filter((n) => {
+          // Search query filter
+          const matchesSearch = !q || n.title.toLowerCase().includes(q.toLowerCase()) || n.content.toLowerCase().includes(q.toLowerCase());
+          if (!matchesSearch) return false;
+
+          // Project filter
+          if (selectedProjectIdFilter === "general") {
+            return !n.projectId;
+          }
+          if (selectedProjectIdFilter !== "all") {
+            return n.projectId === selectedProjectIdFilter;
+          }
+          return true;
+        })
         .sort((a, b) => (b.updatedAt > a.updatedAt ? 1 : -1)),
-    [notes, q]
+    [notes, q, selectedProjectIdFilter]
   );
 
   useEffect(() => {
@@ -62,13 +77,33 @@ export function NotesView() {
                 <Sunrise className="h-3 w-3" /> Daily
               </button>
               <button
-                onClick={() => { const n = addNote({}); selectNote(n.id); }}
+                onClick={() => {
+                  const activeProjId = (selectedProjectIdFilter !== "all" && selectedProjectIdFilter !== "general") ? selectedProjectIdFilter : undefined;
+                  const n = addNote({ projectId: activeProjId });
+                  selectNote(n.id);
+                }}
                 title="New note"
                 className="inline-flex items-center gap-1 h-7 px-2 rounded-md bg-foreground text-background text-[11.5px] font-medium"
               >
                 <Plus className="h-3 w-3" /> New
               </button>
             </div>
+          </div>
+          {/* Project selector dropdown */}
+          <div className="relative">
+            <select
+              value={selectedProjectIdFilter}
+              onChange={(e) => setSelectedProjectIdFilter(e.target.value)}
+              className="w-full text-[11px] bg-secondary border border-border/80 rounded-md px-2.5 py-1.5 outline-none font-semibold text-sidebar-foreground"
+            >
+              <option value="all">📁 All Notes</option>
+              <option value="general">📄 General Notes</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  ⚙️ Project: {p.name}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="flex items-center gap-2 h-8 px-2 rounded-md bg-secondary">
             <Search className="h-3.5 w-3.5 text-muted-foreground" />
@@ -105,6 +140,11 @@ export function NotesView() {
                       <FileText className="h-3 w-3 text-muted-foreground shrink-0" />
                     )}
                     <div className="flex-1 text-[12.5px] font-semibold truncate">{n.title}</div>
+                    {n.projectId && (
+                      <span className="text-[9px] font-mono text-cyan-500 bg-cyan-500/10 px-1.5 py-0.5 rounded truncate max-w-[80px]" title={projects.find((p) => p.id === n.projectId)?.name || "Project"}>
+                        {projects.find((p) => p.id === n.projectId)?.name || "project"}
+                      </span>
+                    )}
                   </div>
                   <div className="mt-0.5 ml-4 text-[11px] text-muted-foreground truncate">
                     {preview || "Empty note"}
@@ -135,6 +175,20 @@ export function NotesView() {
                 placeholder="Untitled note"
                 className="flex-1 bg-transparent text-[18px] font-bold tracking-tight outline-none placeholder:text-muted-foreground"
               />
+              <div className="relative shrink-0 mr-1">
+                <select
+                  value={note.projectId || ""}
+                  onChange={(e) => updateNote(note.id, { projectId: e.target.value || undefined })}
+                  className="text-[11px] bg-secondary border border-border/85 rounded-md px-2 py-1.5 outline-none font-medium text-foreground max-w-[140px] truncate cursor-pointer"
+                >
+                  <option value="">📁 General (No Project)</option>
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      ⚙️ {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
                 <span>Edited {formatDistanceToNow(parseISO(note.updatedAt), { addSuffix: true })}</span>
                 <button

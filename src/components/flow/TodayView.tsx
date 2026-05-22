@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
-import { format, isSameDay, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isToday as isDateToday } from "date-fns";
+import { format, isSameDay, parseISO, isToday as isDateToday } from "date-fns";
 import {
   CheckCircle2, Circle, FileText, Link2, Timer, ChevronLeft, ChevronRight, Plus,
   StickyNote, Cpu, Terminal, Globe, ExternalLink, Sparkles, Activity, Trash2, Copy, Check, X
@@ -178,16 +178,7 @@ export function TodayView() {
     return notes.find((n) => n.id === session.lastEditedNoteId);
   }, [notes, session.lastEditedNoteId]);
 
-  // Calendar setup
-  const today = new Date();
-  const [calMonth, setCalMonth] = useState(today);
-  const monthDays = useMemo(() => {
-    const start = startOfMonth(calMonth);
-    const end = endOfMonth(calMonth);
-    const days = eachDayOfInterval({ start, end });
-    const padStart = getDay(start);
-    return { days, padStart };
-  }, [calMonth]);
+
 
   const stats = [
     { label: "Active Projects", value: projects.length, icon: Cpu, color: "tile-purple" as const },
@@ -220,14 +211,44 @@ export function TodayView() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-            {/* Active Project */}
-            {lastActiveProject && (
+            {/* Merged Active Work Workspace */}
+            {lastActiveProject && session.lastViewedWorkspace === `project:${lastActiveProject.id}` && (
+              <div
+                className="bg-card border border-border/50 hover:border-cyan-500/30 p-3 rounded-lg hover:shadow-card transition-all flex flex-col justify-between"
+              >
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-cyan-600 dark:text-cyan-400">Active Work Workspace</span>
+                  <span className="text-xs font-semibold text-foreground truncate mt-1 block">{lastActiveProject.name}</span>
+                  <p className="text-[10px] text-muted-foreground truncate mt-1">{lastActiveProject.description || "Active engineering workspace."}</p>
+                </div>
+                <div className="mt-2 flex items-center gap-3">
+                  <button
+                    onClick={() => handleNavProject(lastActiveProject.id)}
+                    className="text-[10px] text-primary hover:underline font-semibold text-left"
+                  >
+                    Open Workspace &rarr;
+                  </button>
+                  <span className="text-[10px] text-muted-foreground">|</span>
+                  <button
+                    onClick={() => handleNavWorkspace(session.lastViewedWorkspace!)}
+                    className="text-[10px] text-primary hover:underline font-semibold text-left"
+                  >
+                    Go to View
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Active Project (Unmerged) */}
+            {lastActiveProject && session.lastViewedWorkspace !== `project:${lastActiveProject.id}` && (
               <div
                 onClick={() => handleNavProject(lastActiveProject.id)}
                 className="bg-card border border-border/50 hover:border-cyan-500/30 p-3 rounded-lg cursor-pointer hover:shadow-card transition-all flex flex-col justify-between"
               >
-                <span className="text-[10px] uppercase font-bold text-muted-foreground">Current Project</span>
-                <span className="text-xs font-semibold text-foreground truncate mt-1">{lastActiveProject.name}</span>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground">Current Project</span>
+                  <span className="text-xs font-semibold text-foreground truncate mt-1 block">{lastActiveProject.name}</span>
+                </div>
                 <span className="text-[10px] text-primary hover:underline mt-2 inline-flex items-center gap-0.5">
                   Open Workspace &rarr;
                 </span>
@@ -240,8 +261,10 @@ export function TodayView() {
                 onClick={() => handleNavNote(lastActiveNote.id)}
                 className="bg-card border border-border/50 hover:border-cyan-500/30 p-3 rounded-lg cursor-pointer hover:shadow-card transition-all flex flex-col justify-between"
               >
-                <span className="text-[10px] uppercase font-bold text-muted-foreground">Recent Note</span>
-                <span className="text-xs font-semibold text-foreground truncate mt-1">{lastActiveNote.title}</span>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground">Recent Note</span>
+                  <span className="text-xs font-semibold text-foreground truncate mt-1 block">{lastActiveNote.title}</span>
+                </div>
                 <span className="text-[10px] text-primary hover:underline mt-2 inline-flex items-center gap-0.5">
                   Open Editor &rarr;
                 </span>
@@ -251,10 +274,12 @@ export function TodayView() {
             {/* Last Command */}
             {session.lastCopiedCommand && (
               <div className="bg-card border border-border/50 p-3 rounded-lg flex flex-col justify-between">
-                <span className="text-[10px] uppercase font-bold text-muted-foreground">Last Copied Command</span>
-                <code className="text-[11px] font-mono text-cyan-500 truncate mt-1 block">
-                  {session.lastCopiedCommand}
-                </code>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground">Last Copied Command</span>
+                  <code className="text-[11px] font-mono text-cyan-500 truncate mt-1 block">
+                    {session.lastCopiedCommand}
+                  </code>
+                </div>
                 <button
                   onClick={() => handleCopyCommand(session.lastCopiedCommand!)}
                   className="text-[10px] text-cyan-500 hover:text-cyan-600 mt-2 flex items-center gap-1 font-semibold"
@@ -265,16 +290,18 @@ export function TodayView() {
               </div>
             )}
 
-            {/* Last Workspace */}
-            {session.lastViewedWorkspace && (
+            {/* Last Workspace (Unmerged) */}
+            {session.lastViewedWorkspace && (!lastActiveProject || session.lastViewedWorkspace !== `project:${lastActiveProject.id}`) && (
               <div
                 onClick={() => handleNavWorkspace(session.lastViewedWorkspace!)}
                 className="bg-card border border-border/50 hover:border-cyan-500/30 p-3 rounded-lg cursor-pointer hover:shadow-card transition-all flex flex-col justify-between"
               >
-                <span className="text-[10px] uppercase font-bold text-muted-foreground">Last Workspace</span>
-                <span className="text-xs font-semibold text-foreground truncate mt-1 capitalize">
-                  {session.lastViewedWorkspace.replace("project:", "Project: ")}
-                </span>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground">Last Workspace</span>
+                  <span className="text-xs font-semibold text-foreground truncate mt-1 block capitalize">
+                    {session.lastViewedWorkspace.replace("project:", "Project: ")}
+                  </span>
+                </div>
                 <span className="text-[10px] text-primary hover:underline mt-2 inline-flex items-center gap-0.5">
                   Go to view &rarr;
                 </span>
@@ -546,58 +573,7 @@ export function TodayView() {
             </div>
           </section>
 
-          {/* Calendar Month panel */}
-          <section className="rounded-xl bg-card border border-border shadow-card p-5 flex flex-col">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-[13px] font-semibold tracking-tight">Task Deadlines</h3>
-              <div className="flex items-center gap-1.5">
-                <button
-                  onClick={() => setCalMonth(new Date(calMonth.getFullYear(), calMonth.getMonth() - 1, 1))}
-                  className="h-6 w-6 grid place-items-center rounded hover:bg-secondary text-muted-foreground"
-                >
-                  <ChevronLeft className="h-3 w-3" />
-                </button>
-                <span className="text-[11px] font-bold font-mono tabular-nums">{format(calMonth, "MMM yyyy")}</span>
-                <button
-                  onClick={() => setCalMonth(new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1))}
-                  className="h-6 w-6 grid place-items-center rounded hover:bg-secondary text-muted-foreground"
-                >
-                  <ChevronRight className="h-3 w-3" />
-                </button>
-              </div>
-            </div>
 
-            <div className="grid grid-cols-7 gap-1 text-center">
-              {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
-                <div key={i} className="text-[9px] font-bold text-muted-foreground py-0.5">
-                  {d}
-                </div>
-              ))}
-              {Array.from({ length: monthDays.padStart }).map((_, i) => (
-                <div key={`pad-${i}`} />
-              ))}
-              {monthDays.days.map((d) => {
-                const hasTask = tasks.some((t) => t.dueDate && isSameDay(parseISO(t.dueDate), d));
-                const isCurrent = isDateToday(d);
-                return (
-                  <div
-                    key={d.toISOString()}
-                    className={cn(
-                      "relative h-6 w-6 mx-auto grid place-items-center text-[10px] tabular-nums rounded-md transition-colors",
-                      isCurrent
-                        ? "bg-foreground text-background font-semibold"
-                        : "hover:bg-secondary text-foreground/80"
-                    )}
-                  >
-                    {d.getDate()}
-                    {hasTask && !isCurrent && (
-                      <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 h-1 w-1 rounded-full bg-cyan-500 animate-pulse" />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </section>
         </div>
       </div>
     </div>

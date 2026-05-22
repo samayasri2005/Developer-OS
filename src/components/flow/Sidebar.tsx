@@ -3,7 +3,7 @@ import {
   KanbanSquare, ListChecks, Folder as FolderIcon,
   Plus, CalendarDays, LayoutDashboard,
   Settings, NotebookPen, Terminal, Code2,
-  Cpu, StickyNote
+  Cpu, StickyNote, Calendar
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTasks } from "@/store/tasks";
@@ -90,6 +90,7 @@ export function FlowSidebar({ view, onChange }: Props) {
         <SectionLabel>Overview</SectionLabel>
         <div className="space-y-0.5">
           <NavItem id="today" label="Dashboard" icon={LayoutDashboard} />
+          <NavItem id="calendar" label="Calendar" icon={Calendar} />
           <NavItem id="board" label="Board" icon={KanbanSquare} />
           <NavItem id="all" label="Tasks" icon={ListChecks} count={tasks.filter((t) => !t.projectId && t.status !== "done").length} />
           <NavItem id="upcoming" label="Upcoming" icon={CalendarDays} count={todayCount + overdueCount} />

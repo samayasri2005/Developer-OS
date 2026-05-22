@@ -187,6 +187,7 @@ export function CommandsView() {
   const addCommand = useTasks((s) => s.addCommand);
   const deleteCommand = useTasks((s) => s.deleteCommand);
   const registerCopiedCommand = useTasks((s) => s.registerCopiedCommand);
+  const projects = useTasks((s) => s.projects);
 
   // Layout tabs
   const [activeTab, setActiveTab] = useState<"library" | "playbooks">("library");
@@ -194,12 +195,13 @@ export function CommandsView() {
   // Filtering / Search for Library
   const [q, setQ] = useState("");
   const [activeCat, setActiveCat] = useState("all");
+  const [selectedProjectIdFilter, setSelectedProjectIdFilter] = useState<string>("all");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   
   // Adding commands
   const [adding, setAdding] = useState(false);
   const [commandType, setCommandType] = useState<"single" | "playbook">("single");
-  const [draft, setDraft] = useState({ label: "", command: "", category: "dev" });
+  const [draft, setDraft] = useState({ label: "", command: "", category: "dev", projectId: "" });
 
   // Playbooks workspace states
   const [selectedPlaybookId, setSelectedPlaybookId] = useState<string | null>(null);
@@ -304,9 +306,17 @@ export function CommandsView() {
     return quickCommands.filter((c) => {
       const matchCat = activeCat === "all" || c.category.toLowerCase() === activeCat;
       const matchQ = !q || c.label.toLowerCase().includes(q.toLowerCase()) || c.command.toLowerCase().includes(q.toLowerCase());
-      return matchCat && matchQ;
+      
+      let matchProj = true;
+      if (selectedProjectIdFilter === "general") {
+        matchProj = !c.projectId;
+      } else if (selectedProjectIdFilter !== "all") {
+        matchProj = c.projectId === selectedProjectIdFilter;
+      }
+      
+      return matchCat && matchQ && matchProj;
     });
-  }, [quickCommands, activeCat, q]);
+  }, [quickCommands, activeCat, q, selectedProjectIdFilter]);
 
   const groupedQuickCommands = useMemo(() => {
     const map = new Map<string, typeof filteredQuickCommands>();
@@ -331,8 +341,9 @@ export function CommandsView() {
       label: draft.label.trim() || draft.command.trim().slice(0, 40),
       command: draft.command.trim(),
       category: commandType === "playbook" ? "playbook" : draft.category,
+      projectId: draft.projectId || undefined,
     });
-    setDraft({ label: "", command: "", category: "dev" });
+    setDraft({ label: "", command: "", category: "dev", projectId: "" });
     setAdding(false);
   };
 
@@ -350,7 +361,11 @@ export function CommandsView() {
           </p>
         </div>
         <button
-          onClick={() => setAdding(true)}
+          onClick={() => {
+            const activeProjId = (selectedProjectIdFilter !== "all" && selectedProjectIdFilter !== "general") ? selectedProjectIdFilter : "";
+            setDraft({ label: "", command: "", category: "dev", projectId: activeProjId });
+            setAdding(true);
+          }}
           className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-foreground text-background text-[13px] font-medium hover:bg-foreground/90 transition-colors"
         >
           <Plus className="h-3.5 w-3.5" /> New command
@@ -386,7 +401,7 @@ export function CommandsView() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="space-y-1">
               <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Label / Name</label>
               <input
@@ -415,6 +430,19 @@ export function CommandsView() {
                 </select>
               )}
             </div>
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Link to Project</label>
+              <select
+                value={draft.projectId}
+                onChange={(e) => setDraft({ ...draft, projectId: e.target.value })}
+                className="w-full text-sm rounded-md bg-background border border-border px-3 py-2 outline-none focus:border-primary/50 transition"
+              >
+                <option value="">📁 General (No Project)</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div className="space-y-1">
@@ -441,7 +469,7 @@ export function CommandsView() {
           </div>
           <div className="flex items-center gap-2 justify-end">
             <button
-              onClick={() => { setAdding(false); setDraft({ label: "", command: "", category: "dev" }); }}
+              onClick={() => { setAdding(false); setDraft({ label: "", command: "", category: "dev", projectId: "" }); }}
               className="text-sm px-3 py-1.5 rounded-md text-muted-foreground hover:text-foreground transition"
             >
               Cancel
@@ -505,6 +533,21 @@ export function CommandsView() {
                 className="w-full pl-9 pr-3 py-2 rounded-md bg-card border border-border text-[13px] outline-none focus:border-primary/40 transition-colors"
               />
             </div>
+            <div className="relative shrink-0">
+              <select
+                value={selectedProjectIdFilter}
+                onChange={(e) => setSelectedProjectIdFilter(e.target.value)}
+                className="text-[12px] bg-card border border-border rounded-md px-3 py-2 outline-none font-semibold text-foreground cursor-pointer"
+              >
+                <option value="all">📁 All Projects</option>
+                <option value="general">📄 General (No Project)</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    ⚙️ Project: {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div className="flex items-center gap-1.5 flex-wrap">
               {["all", ...categories].map((cat) => (
                 <button
@@ -566,6 +609,11 @@ export function CommandsView() {
                         )}
                         <code className="text-[12.5px] font-mono text-foreground/80 break-all">{cmd.command}</code>
                       </div>
+                      {cmd.projectId && (
+                        <span className="shrink-0 text-[10px] font-mono text-cyan-500 bg-cyan-500/10 px-1.5 py-0.5 rounded truncate max-w-[120px]" title={projects.find((p) => p.id === cmd.projectId)?.name || "Project"}>
+                          {projects.find((p) => p.id === cmd.projectId)?.name || "project"}
+                        </span>
+                      )}
                       <span className={cn(
                         "shrink-0 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded border",
                         catColor(cmd.category)

@@ -13,6 +13,7 @@ import { CommandsView } from "@/components/flow/CommandsView";
 import SettingsView from "@/views/Settings";
 import { ScratchpadView } from "@/components/flow/ScratchpadView";
 import { ProjectWorkspace } from "@/components/flow/ProjectWorkspace";
+import { CalendarView } from "@/components/flow/CalendarView";
 import { useTasks } from "@/store/tasks";
 
 interface Props {
@@ -73,6 +74,7 @@ const Index = ({ initialView = "today" }: Props) => {
 
   const renderView = () => {
     if (view === "today") return <TodayView />;
+    if (view === "calendar") return <CalendarView />;
     if (view === "upcoming") return <AllTasks scope="upcoming" />;
     if (view === "board") return <Board />;
     if (view === "all") return <AllTasks scope="all" />;
@@ -96,6 +98,10 @@ const Index = ({ initialView = "today" }: Props) => {
           selectTask(null);
           if (v === "commands") {
             navigate("/commands");
+          } else if (v === "calendar") {
+            navigate("/calendar");
+          } else if (v === "settings") {
+            navigate("/settings");
           } else {
             navigate("/");
           }
@@ -133,7 +139,7 @@ const Index = ({ initialView = "today" }: Props) => {
             <Bell className="h-4 w-4" />
             <span className="absolute top-2 right-2 h-1.5 w-1.5 rounded-full bg-primary" />
           </button>
-          <button onClick={() => setView("settings")} className="h-9 w-9 grid place-items-center rounded-lg hover:bg-secondary text-muted-foreground transition-colors" aria-label="Settings">
+          <button onClick={() => { setView("settings"); navigate("/settings"); }} className="h-9 w-9 grid place-items-center rounded-lg hover:bg-secondary text-muted-foreground transition-colors" aria-label="Settings">
             <Settings className="h-4 w-4" />
           </button>
         </header>
@@ -153,6 +159,10 @@ const Index = ({ initialView = "today" }: Props) => {
           selectTask(null);
           if (v === "commands") {
             navigate("/commands");
+          } else if (v === "calendar") {
+            navigate("/calendar");
+          } else if (v === "settings") {
+            navigate("/settings");
           } else {
             navigate("/");
           }
