@@ -23,7 +23,7 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "./firebase";
-import type { Task, Note, Folder, Command } from "./types";
+import type { Task, Note, Folder, Command, Project, Improvement, ActivityLog, Scratchpad } from "./types";
 
 // ── Folders ────────────────────────────────────────────────────────────────
 
@@ -118,4 +118,63 @@ export const fetchPrefs = async (uid: string): Promise<UserPrefs | null> => {
 
 export const savePrefs = async (uid: string, prefs: Partial<UserPrefs>): Promise<void> => {
   await setDoc(doc(db, "dev_preferences", uid), prefs, { merge: true });
+};
+
+// ── Projects ───────────────────────────────────────────────────────────────
+
+export const fetchProjects = async (uid: string): Promise<Project[]> => {
+  const q = query(collection(db, "dev_projects"), where("userId", "==", uid));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => d.data() as Project);
+};
+
+export const saveProject = async (uid: string, project: Project): Promise<void> => {
+  await setDoc(doc(db, "dev_projects", project.id), { ...project, userId: uid });
+};
+
+export const deleteProject = async (uid: string, id: string): Promise<void> => {
+  await deleteDoc(doc(db, "dev_projects", id));
+};
+
+// ── Improvements ───────────────────────────────────────────────────────────
+
+export const fetchImprovements = async (uid: string): Promise<Improvement[]> => {
+  const q = query(collection(db, "dev_improvements"), where("userId", "==", uid));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => d.data() as Improvement);
+};
+
+export const saveImprovement = async (uid: string, imp: Improvement): Promise<void> => {
+  await setDoc(doc(db, "dev_improvements", imp.id), { ...imp, userId: uid });
+};
+
+export const deleteImprovement = async (uid: string, id: string): Promise<void> => {
+  await deleteDoc(doc(db, "dev_improvements", id));
+};
+
+// ── Activity Logs ──────────────────────────────────────────────────────────
+
+export const fetchActivityLogs = async (uid: string): Promise<ActivityLog[]> => {
+  const q = query(collection(db, "dev_activities"), where("userId", "==", uid));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => d.data() as ActivityLog);
+};
+
+export const saveActivityLog = async (uid: string, log: ActivityLog): Promise<void> => {
+  await setDoc(doc(db, "dev_activities", log.id), { ...log, userId: uid });
+};
+
+// ── Scratchpads ────────────────────────────────────────────────────────────
+
+export const fetchScratchpad = async (uid: string): Promise<Scratchpad | null> => {
+  const snap = await getDoc(doc(db, "dev_scratchpads", uid));
+  return snap.exists() ? (snap.data() as Scratchpad) : null;
+};
+
+export const saveScratchpad = async (uid: string, content: string): Promise<void> => {
+  await setDoc(doc(db, "dev_scratchpads", uid), {
+    userId: uid,
+    content,
+    updatedAt: new Date().toISOString(),
+  });
 };

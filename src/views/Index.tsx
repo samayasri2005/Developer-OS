@@ -10,6 +10,9 @@ import { TaskDetail } from "@/components/flow/TaskDetail";
 import { CommandPalette, type CommandView } from "@/components/flow/CommandPalette";
 import { NotesView } from "@/components/flow/NotesView";
 import { CommandsView } from "@/components/flow/CommandsView";
+import SettingsView from "@/views/Settings";
+import { ScratchpadView } from "@/components/flow/ScratchpadView";
+import { ProjectWorkspace } from "@/components/flow/ProjectWorkspace";
 import { useTasks } from "@/store/tasks";
 
 interface Props {
@@ -75,6 +78,11 @@ const Index = ({ initialView = "today" }: Props) => {
     if (view === "all") return <AllTasks scope="all" />;
     if (view === "notes") return <NotesView />;
     if (view === "commands") return <CommandsView />;
+    if (view === "settings") return <SettingsView />;
+    if (view === "scratchpad") return <ScratchpadView />;
+    if (typeof view === "string" && view.startsWith("project:")) {
+      return <ProjectWorkspace projectId={view.split(":")[1]} />;
+    }
     if (typeof view === "string" && view.startsWith("folder:")) return <AllTasks folderFilter={view.split(":")[1]} />;
     return <TodayView />;
   };
@@ -125,7 +133,7 @@ const Index = ({ initialView = "today" }: Props) => {
             <Bell className="h-4 w-4" />
             <span className="absolute top-2 right-2 h-1.5 w-1.5 rounded-full bg-primary" />
           </button>
-          <button onClick={() => navigate("/settings")} className="h-9 w-9 grid place-items-center rounded-lg hover:bg-secondary text-muted-foreground transition-colors" aria-label="Settings">
+          <button onClick={() => setView("settings")} className="h-9 w-9 grid place-items-center rounded-lg hover:bg-secondary text-muted-foreground transition-colors" aria-label="Settings">
             <Settings className="h-4 w-4" />
           </button>
         </header>

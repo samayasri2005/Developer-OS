@@ -1,14 +1,6 @@
-/**
- * Developer OS — Task, Note, Folder & Command store backed by Firebase Firestore.
- * No workspace concept — all data belongs to the signed-in user directly.
- *
- * All data stored under users/{uid}/ sub-collections.
- * Call initStore(uid) on sign-in, clearStore() on sign-out.
- */
-
 import { create } from "zustand";
 import { isToday, isPast, parseISO, startOfDay } from "date-fns";
-import type { Folder, LinkRef, Note, Priority, Recurrence, Status, Subtask, Task, Command } from "@/lib/types";
+import type { Folder, LinkRef, Note, Priority, Recurrence, Status, Subtask, Task, Command, Project, Improvement, ActivityLog, Scratchpad } from "@/lib/types";
 import {
   fetchFolders,
   fetchTasks,
@@ -25,6 +17,16 @@ import {
   batchSaveTasks,
   saveCommand,
   deleteCommand as fsDeleteCommand,
+  fetchProjects,
+  saveProject,
+  deleteProject as fsDeleteProject,
+  fetchImprovements,
+  saveImprovement,
+  deleteImprovement as fsDeleteImprovement,
+  fetchActivityLogs,
+  saveActivityLog,
+  fetchScratchpad,
+  saveScratchpad,
 } from "@/lib/firestoreData";
 
 const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
@@ -38,7 +40,23 @@ interface NewTaskInput {
   dueDate?: string;
   recurrence?: Recurrence;
   description?: string;
+  projectId?: string;
 }
+
+const updateSession = (patch: {
+  lastActiveProjectId?: string | null;
+  lastEditedNoteId?: string | null;
+  lastCopiedCommand?: string | null;
+  lastViewedWorkspace?: string | null;
+}) => {
+  try {
+    const existing = localStorage.getItem("dev_os_session");
+    const current = existing ? JSON.parse(existing) : {};
+    localStorage.setItem("dev_os_session", JSON.stringify({ ...current, ...patch }));
+  } catch (e) {
+    console.error("Failed to update session state", e);
+  }
+};
 
 interface State {
   // Auth / init
@@ -78,7 +96,7 @@ interface State {
   notes: Note[];
   selectedNoteId: string | null;
   selectNote: (id: string | null) => void;
-  addNote: (input?: { title?: string; content?: string; kind?: "note" | "daily"; dayKey?: string }) => Note;
+  addNote: (input?: { title?: string; content?: string; kind?: "note" | "daily"; dayKey?: string; projectId?: string }) => Note;
   updateNote: (id: string, patch: Partial<Note>) => void;
   deleteNote: (id: string) => void;
 
@@ -91,6 +109,37 @@ interface State {
   commands: Command[];
   addCommand: (input: Omit<Command, "id" | "createdAt">) => void;
   deleteCommand: (id: string) => void;
+
+  // Projects
+  projects: Project[];
+  improvements: Improvement[];
+  activities: ActivityLog[];
+  scratchpad: string;
+  selectedProjectId: string | null;
+
+  selectProject: (id: string | null) => void;
+  addProject: (name: string, description?: string) => Project;
+  updateProject: (id: string, patch: Partial<Project>) => void;
+  deleteProject: (id: string) => void;
+
+  // Improvements
+  addImprovement: (projectId: string, title: string, priority?: "low" | "medium" | "high") => Improvement;
+  toggleImprovement: (id: string) => void;
+  updateImprovement: (id: string, patch: Partial<Improvement>) => void;
+  deleteImprovement: (id: string) => void;
+  convertImprovementToTask: (id: string) => void;
+
+  // Scratchpad
+  updateScratchpad: (content: string) => void;
+
+  // Activities log
+  logActivity: (
+    type: ActivityLog["type"],
+    message: string,
+    metadata?: Record<string, any>
+  ) => void;
+
+  registerCopiedCommand: (command: string) => void;
 }
 
 const todayKey = () => new Date().toISOString().slice(0, 10);
@@ -105,6 +154,11 @@ const emptyState = {
   notes: [] as Note[],
   selectedNoteId: null as string | null,
   commands: [] as Command[],
+  projects: [] as Project[],
+  improvements: [] as Improvement[],
+  activities: [] as ActivityLog[],
+  scratchpad: "",
+  selectedProjectId: null as string | null,
 };
 
 export const useTasks = create<State>()((set, get) => ({
@@ -115,11 +169,15 @@ export const useTasks = create<State>()((set, get) => ({
   initStore: async (userUid: string) => {
     set({ loading: true, currentUid: userUid });
     try {
-      const [folders, tasks, notes, commands] = await Promise.all([
+      const [folders, tasks, notes, commands, projects, improvements, activities, scratchpadDoc] = await Promise.all([
         fetchFolders(userUid),
         fetchTasks(userUid),
         fetchNotes(userUid),
         fetchCommands(userUid),
+        fetchProjects(userUid),
+        fetchImprovements(userUid),
+        fetchActivityLogs(userUid),
+        fetchScratchpad(userUid),
       ]);
 
       // Seed defaults for brand-new users
@@ -144,11 +202,47 @@ export const useTasks = create<State>()((set, get) => ({
         ];
         for (const f of defaultFolders) await saveFolder(userUid, f);
         await batchSaveTasks(userUid, defaultTasks);
-        set({ folders: defaultFolders, tasks: defaultTasks, notes: [], commands: [], loading: false });
+        
+        // Seed default project for new users
+        const defaultProject: Project = {
+          id: "default-project",
+          name: "Sample Project",
+          description: "My primary developer workspace project.",
+          githubRepo: "https://github.com/example/sample",
+          createdAt: now,
+          environments: {
+            development: { deployUrl: "http://localhost:3000", notes: "Local development server", commands: "npm run dev" },
+            staging: { deployUrl: "https://staging.example.com", notes: "Staging deployment pipeline" },
+            production: { deployUrl: "https://example.com", notes: "Live production website" },
+          }
+        };
+        await saveProject(userUid, defaultProject);
+
+        set({
+          folders: defaultFolders,
+          tasks: defaultTasks,
+          notes: [],
+          commands: [],
+          projects: [defaultProject],
+          improvements: [],
+          activities: [],
+          scratchpad: "",
+          loading: false
+        });
         return;
       }
 
-      set({ folders, tasks, notes, commands, loading: false });
+      set({
+        folders,
+        tasks,
+        notes,
+        commands,
+        projects,
+        improvements,
+        activities: activities.sort((a, b) => b.timestamp.localeCompare(a.timestamp)),
+        scratchpad: scratchpadDoc?.content ?? "",
+        loading: false
+      });
     } catch (err) {
       console.error("Failed to load store from Firestore:", err);
       set({ loading: false });
@@ -160,7 +254,16 @@ export const useTasks = create<State>()((set, get) => ({
   // ── Tasks ────────────────────────────────────────────────────────────────
 
   setQuickAddOpen: (v) => set({ quickAddOpen: v }),
-  selectTask: (id) => set({ selectedTaskId: id }),
+  selectTask: (id) => {
+    set({ selectedTaskId: id });
+    if (id) {
+      const task = get().tasks.find(t => t.id === id);
+      if (task?.projectId) {
+        updateSession({ lastActiveProjectId: task.projectId });
+      }
+      updateSession({ lastViewedWorkspace: "all" });
+    }
+  },
 
   addTask: (input) => {
     const tasks = get().tasks;
@@ -181,6 +284,7 @@ export const useTasks = create<State>()((set, get) => ({
       subtasks: [],
       createdAt: new Date().toISOString(),
       order,
+      projectId: input.projectId,
     };
     set({ tasks: [t, ...tasks] });
     const { currentUid } = get();
@@ -211,6 +315,9 @@ export const useTasks = create<State>()((set, get) => ({
       status: isDone ? "todo" : "done",
       completedAt: isDone ? undefined : new Date().toISOString(),
     });
+    if (!isDone) {
+      get().logActivity("task_completed", `Completed task: "${t.title}"`, { taskId: t.id, projectId: t.projectId });
+    }
   },
 
   moveTask: (id, status, newOrder) => {
@@ -362,7 +469,12 @@ export const useTasks = create<State>()((set, get) => ({
   // ── Notes ────────────────────────────────────────────────────────────────
 
   selectedNoteId: null,
-  selectNote: (id) => set({ selectedNoteId: id }),
+  selectNote: (id) => {
+    set({ selectedNoteId: id });
+    if (id) {
+      updateSession({ lastEditedNoteId: id, lastViewedWorkspace: "notes" });
+    }
+  },
 
   addNote: (input) => {
     const now = new Date().toISOString();
@@ -379,10 +491,12 @@ export const useTasks = create<State>()((set, get) => ({
       linkedTaskIds: [],
       createdAt: now,
       updatedAt: now,
+      projectId: input?.projectId,
     };
     set({ notes: [n, ...get().notes], selectedNoteId: n.id });
     const { currentUid } = get();
     if (currentUid) saveNote(currentUid, n).catch(console.error);
+    updateSession({ lastEditedNoteId: n.id, lastViewedWorkspace: "notes" });
     return n;
   },
 
@@ -393,6 +507,7 @@ export const useTasks = create<State>()((set, get) => ({
     set({ notes });
     const { currentUid } = get();
     if (currentUid) fsUpdateNote(currentUid, id, { ...patch, updatedAt: new Date().toISOString() }).catch(console.error);
+    updateSession({ lastEditedNoteId: id });
   },
 
   deleteNote: (id) => {
@@ -452,6 +567,7 @@ export const useTasks = create<State>()((set, get) => ({
 
   // ── Commands ─────────────────────────────────────────────────────────────
 
+  commands: [],
   addCommand: (input) => {
     const cmd: Command = {
       id: uid(),
@@ -468,6 +584,161 @@ export const useTasks = create<State>()((set, get) => ({
     const { currentUid } = get();
     if (currentUid) fsDeleteCommand(currentUid, id).catch(console.error);
   },
+
+  // ── Projects ─────────────────────────────────────────────────────────────
+
+  projects: [],
+  improvements: [],
+  activities: [],
+  scratchpad: "",
+  selectedProjectId: null,
+
+  selectProject: (id) => {
+    set({ selectedProjectId: id });
+    if (id) {
+      updateSession({ lastActiveProjectId: id, lastViewedWorkspace: `project:${id}` });
+    }
+  },
+
+  addProject: (name, description) => {
+    const p: Project = {
+      id: uid(),
+      name,
+      description,
+      createdAt: new Date().toISOString(),
+      environments: {
+        development: { deployUrl: "", firebaseProject: "", vercelProject: "", notes: "", commands: "" },
+        staging: { deployUrl: "", firebaseProject: "", vercelProject: "", notes: "", commands: "" },
+        production: { deployUrl: "", firebaseProject: "", vercelProject: "", notes: "", commands: "" },
+      },
+      stages: [
+        { id: "development", name: "Development", enabled: true },
+        { id: "staging", name: "Staging", enabled: true },
+        { id: "production", name: "Production", enabled: true },
+      ],
+      customFields: [],
+    };
+    set({ projects: [...get().projects, p], selectedProjectId: p.id });
+    const { currentUid } = get();
+    if (currentUid) saveProject(currentUid, p).catch(console.error);
+    get().logActivity("project_updated", `Created project: "${name}"`, { projectId: p.id });
+    updateSession({ lastActiveProjectId: p.id, lastViewedWorkspace: `project:${p.id}` });
+    return p;
+  },
+
+  updateProject: (id, patch) => {
+    const projects = get().projects.map((p) => (p.id === id ? { ...p, ...patch } : p));
+    set({ projects });
+    const { currentUid } = get();
+    if (currentUid) {
+      const updated = projects.find((p) => p.id === id);
+      if (updated) saveProject(currentUid, updated).catch(console.error);
+    }
+    get().logActivity("project_updated", `Updated project: "${patch.name || 'details'}"`, { projectId: id });
+  },
+
+  deleteProject: (id) => {
+    set({
+      projects: get().projects.filter((p) => p.id !== id),
+      selectedProjectId: get().selectedProjectId === id ? null : get().selectedProjectId,
+      tasks: get().tasks.map((t) => t.projectId === id ? { ...t, projectId: undefined } : t),
+      notes: get().notes.map((n) => n.projectId === id ? { ...n, projectId: undefined } : n),
+      commands: get().commands.map((c) => c.projectId === id ? { ...c, projectId: undefined } : c),
+      improvements: get().improvements.filter((imp) => imp.projectId !== id),
+    });
+    const { currentUid } = get();
+    if (currentUid) fsDeleteProject(currentUid, id).catch(console.error);
+  },
+
+  // ── Improvements ─────────────────────────────────────────────────────────
+
+  addImprovement: (projectId, title, priority = "medium") => {
+    const imp: Improvement = {
+      id: uid(),
+      projectId,
+      title,
+      done: false,
+      priority,
+      createdAt: new Date().toISOString(),
+    };
+    set({ improvements: [imp, ...get().improvements] });
+    const { currentUid } = get();
+    if (currentUid) saveImprovement(currentUid, imp).catch(console.error);
+    return imp;
+  },
+
+  toggleImprovement: (id) => {
+    const improvements = get().improvements.map((imp) => {
+      if (imp.id === id) {
+        const nextDone = !imp.done;
+        if (nextDone) {
+          get().logActivity("improvement_completed", `Completed improvement idea: "${imp.title}"`, { projectId: imp.projectId });
+        }
+        return { ...imp, done: nextDone };
+      }
+      return imp;
+    });
+    set({ improvements });
+    const { currentUid } = get();
+    const updated = improvements.find((imp) => imp.id === id);
+    if (currentUid && updated) saveImprovement(currentUid, updated).catch(console.error);
+  },
+
+  updateImprovement: (id, patch) => {
+    const improvements = get().improvements.map((imp) => (imp.id === id ? { ...imp, ...patch } : imp));
+    set({ improvements });
+    const { currentUid } = get();
+    const updated = improvements.find((imp) => imp.id === id);
+    if (currentUid && updated) saveImprovement(currentUid, updated).catch(console.error);
+  },
+
+  deleteImprovement: (id) => {
+    set({ improvements: get().improvements.filter((imp) => imp.id !== id) });
+    const { currentUid } = get();
+    if (currentUid) fsDeleteImprovement(currentUid, id).catch(console.error);
+  },
+
+  convertImprovementToTask: (id) => {
+    const imp = get().improvements.find((x) => x.id === id);
+    if (!imp) return;
+    const task = get().addTask({
+      title: imp.title,
+      priority: imp.priority || "medium",
+      projectId: imp.projectId,
+    });
+    get().deleteImprovement(id);
+    get().logActivity("project_updated", `Converted improvement "${imp.title}" to a task`, { projectId: imp.projectId, taskId: task.id });
+  },
+
+  // ── Scratchpad ───────────────────────────────────────────────────────────
+
+  updateScratchpad: (content) => {
+    set({ scratchpad: content });
+    const { currentUid } = get();
+    if (currentUid) saveScratchpad(currentUid, content).catch(console.error);
+  },
+
+  // ── Activities ───────────────────────────────────────────────────────────
+
+  logActivity: (type, message, metadata) => {
+    const { currentUid } = get();
+    if (!currentUid) return;
+    const log: ActivityLog = {
+      id: uid(),
+      userId: currentUid,
+      type,
+      message,
+      timestamp: new Date().toISOString(),
+      metadata,
+    };
+    set({ activities: [log, ...get().activities].slice(0, 100) });
+    saveActivityLog(currentUid, log).catch(console.error);
+  },
+
+  registerCopiedCommand: (command) => {
+    updateSession({ lastCopiedCommand: command });
+    get().logActivity("command_copied", `Copied command: \`${command}\``, { command });
+  },
 }));
 
 export const isOverdue = (t: Task) =>
@@ -475,3 +746,4 @@ export const isOverdue = (t: Task) =>
 
 export const isDueToday = (t: Task) =>
   !!t.dueDate && isToday(parseISO(t.dueDate));
+

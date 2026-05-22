@@ -3,13 +3,13 @@ import {
   KanbanSquare, ListChecks, Folder as FolderIcon,
   Plus, CalendarDays, LayoutDashboard,
   Settings, NotebookPen, Terminal, Code2,
+  Cpu, StickyNote
 } from "lucide-react";
-import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useTasks } from "@/store/tasks";
 import { useAuth } from "@/contexts/AuthContext";
 
-export type View = "today" | "upcoming" | "board" | "all" | "notes" | "commands" | string;
+export type View = "today" | "upcoming" | "board" | "all" | "notes" | "commands" | "settings" | "scratchpad" | string;
 
 interface Props {
   view: View;
@@ -19,9 +19,14 @@ interface Props {
 export function FlowSidebar({ view, onChange }: Props) {
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
+  const [addingProject, setAddingProject] = useState(false);
+  const [projName, setProjName] = useState("");
 
   const folders = useTasks((s) => s.folders);
   const addFolder = useTasks((s) => s.addFolder);
+  const projects = useTasks((s) => s.projects);
+  const addProject = useTasks((s) => s.addProject);
+  const selectProject = useTasks((s) => s.selectProject);
   const tasks = useTasks((s) => s.tasks);
   const { user } = useAuth();
 
@@ -31,7 +36,14 @@ export function FlowSidebar({ view, onChange }: Props) {
     const isActive = view === id;
     return (
       <button
-        onClick={() => onChange(id)}
+        onClick={() => {
+          if (typeof id === "string" && id.startsWith("project:")) {
+            selectProject(id.split(":")[1]);
+          } else {
+            selectProject(null);
+          }
+          onChange(id);
+        }}
         className={cn(
           "group w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-[13px] font-medium transition-colors no-tap-highlight",
           isActive
@@ -79,10 +91,63 @@ export function FlowSidebar({ view, onChange }: Props) {
         <div className="space-y-0.5">
           <NavItem id="today" label="Dashboard" icon={LayoutDashboard} />
           <NavItem id="board" label="Board" icon={KanbanSquare} />
-          <NavItem id="all" label="Tasks" icon={ListChecks} count={tasks.filter((t) => t.status !== "done").length} />
+          <NavItem id="all" label="Tasks" icon={ListChecks} count={tasks.filter((t) => !t.projectId && t.status !== "done").length} />
           <NavItem id="upcoming" label="Upcoming" icon={CalendarDays} count={todayCount + overdueCount} />
           <NavItem id="notes" label="Notes" icon={NotebookPen} />
           <NavItem id="commands" label="Commands" icon={Terminal} />
+          <NavItem id="scratchpad" label="Scratchpad" icon={StickyNote} />
+        </div>
+
+        <SectionLabel
+          action={
+            <button
+              onClick={() => setAddingProject((v) => !v)}
+              className="h-5 w-5 grid place-items-center rounded-md hover:bg-sidebar-accent text-muted-foreground"
+              aria-label="Add project"
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+          }
+        >
+          Projects
+        </SectionLabel>
+
+        {addingProject && (
+          <form
+            className="px-2 pb-1.5"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (projName.trim()) {
+                addProject(projName.trim());
+                setProjName("");
+                setAddingProject(false);
+              }
+            }}
+          >
+            <input
+              autoFocus
+              value={projName}
+              onChange={(e) => setProjName(e.target.value)}
+              placeholder="Project name"
+              className="w-full text-xs bg-secondary border border-border rounded-md px-2 py-1.5 outline-none focus:ring-1 focus:ring-primary"
+            />
+          </form>
+        )}
+
+        <div className="space-y-0.5">
+          {projects.length === 0 ? (
+            <div className="px-3 py-1.5 text-[11px] text-muted-foreground">No projects yet</div>
+          ) : (
+            projects.map((p) => (
+              <NavItem
+                key={p.id}
+                id={`project:${p.id}`}
+                label={p.name}
+                icon={Cpu}
+                count={tasks.filter((t) => t.projectId === p.id && t.status !== "done").length}
+              />
+            ))
+          )}
         </div>
 
         <SectionLabel
@@ -136,7 +201,16 @@ export function FlowSidebar({ view, onChange }: Props) {
 
       {/* Profile / footer */}
       <div className="mt-3 pt-3 border-t border-sidebar-border px-1">
-        <Link to="/settings" className="w-full flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-sidebar-accent transition-colors">
+        <button
+          onClick={() => {
+            selectProject(null);
+            onChange("settings");
+          }}
+          className={cn(
+            "w-full flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-sidebar-accent transition-colors text-left",
+            view === "settings" && "bg-sidebar-accent"
+          )}
+        >
           <div className="h-7 w-7 rounded-full bg-gradient-to-br from-primary to-primary-glow grid place-items-center text-primary-foreground text-[11px] font-bold shrink-0">
             {(user?.displayName || user?.email || "D").slice(0, 1).toUpperCase()}
           </div>
@@ -144,8 +218,8 @@ export function FlowSidebar({ view, onChange }: Props) {
             <div className="text-[12px] font-semibold tracking-tight truncate">{user?.displayName || "Developer"}</div>
             <div className="text-[10px] text-muted-foreground truncate">{user?.email || ""}</div>
           </div>
-          <Settings className="h-3.5 w-3.5 text-muted-foreground" />
-        </Link>
+          <Settings className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        </button>
       </div>
     </aside>
   );

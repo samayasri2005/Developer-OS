@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Search, LayoutDashboard, KanbanSquare, ListChecks, CalendarDays, Plus, CornerDownLeft, ArrowUp, ArrowDown, NotebookPen, Sunrise, FileText, Terminal } from "lucide-react";
+import { Search, LayoutDashboard, KanbanSquare, ListChecks, CalendarDays, Plus, CornerDownLeft, ArrowUp, ArrowDown, NotebookPen, Sunrise, FileText, Terminal, Settings, StickyNote } from "lucide-react";
 import { useTasks } from "@/store/tasks";
 import { cn } from "@/lib/utils";
 
-export type CommandView = "today" | "upcoming" | "board" | "all" | "notes" | "commands";
+export type CommandView = "today" | "upcoming" | "board" | "all" | "notes" | "commands" | "settings" | "scratchpad" | string;
 
 interface Props {
   open: boolean;
@@ -40,6 +40,8 @@ export function CommandPalette({ open, onClose, onNavigate }: Props) {
       { id: "nav-upcoming", type: "nav" as const, label: "Go to Upcoming", icon: CalendarDays, action: () => { onNavigate("upcoming"); onClose(); } },
       { id: "nav-notes", type: "nav" as const, label: "Go to Notes", icon: NotebookPen, action: () => { onNavigate("notes"); onClose(); } },
       { id: "nav-commands", type: "nav" as const, label: "Go to Commands", icon: Terminal, action: () => { onNavigate("commands"); onClose(); } },
+      { id: "nav-scratchpad", type: "nav" as const, label: "Go to Scratchpad", icon: StickyNote, action: () => { onNavigate("scratchpad"); onClose(); } },
+      { id: "nav-settings", type: "nav" as const, label: "Go to Settings", icon: Settings, action: () => { onNavigate("settings"); onClose(); } },
       { id: "create", type: "action" as const, label: "Create new task…", icon: Plus, action: () => { onClose(); setQuickAddOpen(true); } },
       { id: "create-note", type: "action" as const, label: "Create new note", icon: FileText, action: () => { const n = addNote({}); selectNote(n.id); onNavigate("notes"); onClose(); } },
       { id: "daily-log", type: "action" as const, label: "Open today's Daily Log", icon: Sunrise, action: () => { const n = getOrCreateDailyLog(); selectNote(n.id); onNavigate("notes"); onClose(); } },

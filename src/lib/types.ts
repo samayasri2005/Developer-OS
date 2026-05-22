@@ -27,6 +27,7 @@ export interface Task {
   notes?: string;
   links?: LinkRef[];
   linkedNoteIds?: string[];
+  projectId?: string;
 }
 
 export interface LinkRef {
@@ -49,6 +50,7 @@ export interface Note {
   linkedTaskIds: string[];
   createdAt: string;
   updatedAt: string;
+  projectId?: string;
 }
 
 export interface Folder {
@@ -64,4 +66,53 @@ export interface Command {
   command: string;
   category: string;
   createdAt: string;
+  projectId?: string;
+}
+
+export interface ProjectEnvironment {
+  deployUrl?: string;
+  firebaseProject?: string;
+  vercelProject?: string;
+  notes?: string;
+  commands?: string;
+}
+
+export interface Project {
+  id: string;
+  userId?: string;
+  name: string;
+  description?: string;
+  githubRepo?: string;
+  firebaseProject?: string;
+  vercelProject?: string;
+  createdAt: string;
+  environments: Record<string, ProjectEnvironment>;
+  stages?: { id: string; name: string; enabled: boolean }[];
+  customFields?: { id: string; label: string; value: string }[];
+  links?: LinkRef[];
+}
+
+export interface Improvement {
+  id: string;
+  userId?: string;
+  projectId: string;
+  title: string;
+  done: boolean;
+  priority?: "low" | "medium" | "high";
+  createdAt: string;
+}
+
+export interface ActivityLog {
+  id: string;
+  userId: string;
+  type: "task_completed" | "note_edited" | "command_copied" | "deployment_opened" | "project_updated" | "improvement_completed";
+  message: string;
+  timestamp: string;
+  metadata?: Record<string, any>;
+}
+
+export interface Scratchpad {
+  userId: string;
+  content: string;
+  updatedAt: string;
 }

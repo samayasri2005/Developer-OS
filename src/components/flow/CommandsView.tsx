@@ -186,6 +186,7 @@ export function CommandsView() {
   const commands = useTasks((s) => s.commands);
   const addCommand = useTasks((s) => s.addCommand);
   const deleteCommand = useTasks((s) => s.deleteCommand);
+  const registerCopiedCommand = useTasks((s) => s.registerCopiedCommand);
 
   // Layout tabs
   const [activeTab, setActiveTab] = useState<"library" | "playbooks">("library");
@@ -319,6 +320,7 @@ export function CommandsView() {
 
   const copy = (id: string, text: string) => {
     navigator.clipboard?.writeText(text);
+    registerCopiedCommand(text);
     setCopiedId(id);
     setTimeout(() => setCopiedId((c) => (c === id ? null : c)), 1400);
   };

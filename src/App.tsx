@@ -64,7 +64,7 @@ const App = () => (
                 <ProtectedRoute>
                   <Routes>
                     <Route path="/commands" element={<Index initialView="commands" />} />
-                    <Route path="/settings" element={<Settings />} />
+                    <Route path="/settings" element={<Index initialView="settings" />} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>
                 </ProtectedRoute>
