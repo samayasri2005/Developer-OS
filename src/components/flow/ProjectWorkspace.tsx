@@ -1,8 +1,9 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useTasks } from "@/store/tasks";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Cpu, Terminal, Notebook, CheckSquare, Plus, Trash2,
-  ExternalLink, Copy, Check, FileText, Globe, GitBranch,
+  ExternalLink, Copy, Check, FileText, Globe, GitBranch, GitCommit,
   PlayCircle, Edit3, Save, X, ArrowUpRight, Link2, Sparkles,
   Bot, UserCheck, FileJson, Layers
 } from "lucide-react";
@@ -13,6 +14,81 @@ import type { ProjectEnvironment, Priority, LinkRef } from "@/lib/types";
 interface Props {
   projectId: string;
 }
+
+const cleanUrl = (url: string) => {
+  return url
+    .replace(/^https?:\/\//i, "")
+    .replace(/\/+$/, "")
+    .toLowerCase();
+};
+
+const getOwnerRepo = (str: string) => {
+  if (!str) return "";
+  const cleaned = str.trim();
+  if (cleaned.startsWith("http://") || cleaned.startsWith("https://")) {
+    try {
+      const url = new URL(cleaned);
+      if (url.hostname.includes("github.com")) {
+        const parts = url.pathname.split("/").filter(Boolean);
+        if (parts.length >= 2) {
+          return `${parts[0]}/${parts[1]}`;
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+  return cleaned;
+};
+
+const VercelStatusBadge = ({ state }: { state: string }) => {
+  let color = "bg-muted text-muted-foreground border-border";
+  let label = state;
+
+  switch (state.toUpperCase()) {
+    case "READY":
+      color = "bg-success/10 text-success border-success/30";
+      label = "Ready";
+      break;
+    case "BUILDING":
+    case "INITIALIZING":
+      color = "bg-warning/10 text-warning border-warning/30 animate-pulse";
+      label = "Building";
+      break;
+    case "ERROR":
+    case "FAILED":
+      color = "bg-destructive/10 text-destructive border-destructive/30";
+      label = "Failed";
+      break;
+    case "QUEUED":
+      color = "bg-info/10 text-info border-info/30";
+      label = "Queued";
+      break;
+    case "CANCELED":
+      color = "bg-muted text-muted-foreground border-border";
+      label = "Canceled";
+      break;
+  }
+
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-medium border uppercase shrink-0",
+        color
+      )}
+    >
+      <span className={cn(
+        "h-1 w-1 rounded-full",
+        state.toUpperCase() === "READY" && "bg-success",
+        (state.toUpperCase() === "BUILDING" || state.toUpperCase() === "INITIALIZING") && "bg-warning",
+        (state.toUpperCase() === "ERROR" || state.toUpperCase() === "FAILED") && "bg-destructive",
+        state.toUpperCase() === "QUEUED" && "bg-info",
+        state.toUpperCase() === "CANCELED" && "bg-muted-foreground"
+      )} />
+      {label}
+    </span>
+  );
+};
 
 export function ProjectWorkspace({ projectId }: Props) {
   const projects = useTasks((s) => s.projects);
@@ -41,6 +117,101 @@ export function ProjectWorkspace({ projectId }: Props) {
   const registerCopiedCommand = useTasks((s) => s.registerCopiedCommand);
 
   const project = useMemo(() => projects.find((p) => p.id === projectId), [projects, projectId]);
+
+  const { userProfile } = useAuth();
+  const [vercelDeployments, setVercelDeployments] = useState<any[]>([]);
+  const [githubCommits, setGithubCommits] = useState<any[]>([]);
+  const [githubLoading, setGithubLoading] = useState(false);
+
+  useEffect(() => {
+    const vToken = userProfile?.apiKeys?.vercel;
+    if (!vToken) {
+      setVercelDeployments([]);
+      return;
+    }
+
+    let isMounted = true;
+    const fetchVercel = async () => {
+      try {
+        const res = await fetch("https://api.vercel.com/v6/deployments?limit=50", {
+          headers: { Authorization: `Bearer ${vToken}` },
+        });
+        if (!res.ok) throw new Error("Vercel error");
+        const data = await res.json();
+        if (isMounted && data?.deployments) {
+          setVercelDeployments(data.deployments);
+        }
+      } catch (err) {
+        console.error("Error fetching Vercel:", err);
+      }
+    };
+
+    fetchVercel();
+    const interval = setInterval(fetchVercel, 30000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [userProfile?.apiKeys?.vercel]);
+
+  useEffect(() => {
+    const gToken = userProfile?.apiKeys?.github;
+    const gRepo = getOwnerRepo(project?.githubRepo || "");
+
+    if (!gRepo) {
+      setGithubCommits([]);
+      return;
+    }
+
+    let isMounted = true;
+    const fetchGithub = async () => {
+      setGithubLoading(true);
+      try {
+        const headers: Record<string, string> = {
+          Accept: "application/vnd.github.v3+json",
+        };
+        if (gToken) {
+          headers.Authorization = `token ${gToken}`;
+        }
+        const res = await fetch(`https://api.github.com/repos/${gRepo}/commits?per_page=5`, {
+          headers,
+        });
+        if (!res.ok) throw new Error("GitHub error");
+        const data = await res.json();
+        if (isMounted && Array.isArray(data)) {
+          setGithubCommits(data);
+        }
+      } catch (err) {
+        console.error("Error fetching GitHub commits:", err);
+      } finally {
+        if (isMounted) setGithubLoading(false);
+      }
+    };
+
+    fetchGithub();
+  }, [userProfile?.apiKeys?.github, project?.githubRepo]);
+
+  const getVercelStatus = (vercelProjName?: string, url?: string) => {
+    if (!vercelDeployments || vercelDeployments.length === 0) return null;
+
+    if (vercelProjName) {
+      const match = vercelDeployments.find(
+        (vd) => vd.name?.toLowerCase() === vercelProjName.toLowerCase()
+      );
+      if (match) return match;
+    }
+
+    if (url) {
+      const cleanedDep = cleanUrl(url);
+      const match = vercelDeployments.find((vd) => {
+        const cleanedVd = cleanUrl(vd.url);
+        return cleanedVd === cleanedDep || cleanedDep.includes(cleanedVd) || cleanedVd.includes(cleanedDep);
+      });
+      if (match) return match;
+    }
+
+    return null;
+  };
 
   const [activeTab, setActiveTab] = useState<"environments" | "tasks" | "improvements" | "notes" | "links" | "commands" | "techstack" | "accounts" | "ai_tools" | "configs">("environments");
 
@@ -298,9 +469,15 @@ export function ProjectWorkspace({ projectId }: Props) {
               </a>
             )}
             {project.vercelProject && (
-              <div className="flex items-center gap-1 text-muted-foreground">
+              <div className="flex items-center gap-1.5 text-muted-foreground">
                 <span className="font-semibold text-foreground/80">Vercel:</span>
                 <span>{project.vercelProject}</span>
+                {userProfile?.apiKeys?.vercel && (() => {
+                  const vDep = getVercelStatus(project.vercelProject);
+                  return vDep ? (
+                    <VercelStatusBadge state={vDep.state} />
+                  ) : null;
+                })()}
               </div>
             )}
             {project.firebaseProject && (
@@ -388,7 +565,9 @@ export function ProjectWorkspace({ projectId }: Props) {
       <div className="pt-2">
         {/* TAB 1: Environments */}
         {activeTab === "environments" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+            <div className="xl:col-span-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {enabledStages.length === 0 ? (
               <div className="col-span-full text-center py-12 border border-dashed border-border rounded-2xl text-xs text-muted-foreground bg-card">
                 No environment stages enabled. Enable them in the Projects & UI settings!
@@ -493,7 +672,15 @@ export function ProjectWorkspace({ projectId }: Props) {
                       ) : (
                         <div className="space-y-4 pt-1">
                           <div>
-                            <div className="text-[10px] font-medium text-muted-foreground">Deploy Endpoint</div>
+                            <div className="text-[10px] font-medium text-muted-foreground flex items-center justify-between">
+                              <span>Deploy Endpoint</span>
+                              {userProfile?.apiKeys?.vercel && (() => {
+                                const vDep = getVercelStatus(data.vercelProject || project.vercelProject, data.deployUrl);
+                                return vDep ? (
+                                  <VercelStatusBadge state={vDep.state} />
+                                ) : null;
+                              })()}
+                            </div>
                             {data.deployUrl ? (
                               <a
                                 href={data.deployUrl}
@@ -562,6 +749,82 @@ export function ProjectWorkspace({ projectId }: Props) {
                 );
               })
             )}
+              </div>
+            </div>
+
+            {/* GitHub commits feed */}
+            <div className="xl:col-span-1">
+              <div className="rounded-xl border border-border bg-card p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <GitCommit className="h-4 w-4 text-primary" />
+                  <h3 className="text-xs font-bold text-foreground uppercase tracking-wider">Recent Commits</h3>
+                </div>
+
+                {githubLoading ? (
+                  <div className="py-8 text-center text-xs text-muted-foreground animate-pulse">
+                    Fetching latest commits...
+                  </div>
+                ) : !project.githubRepo ? (
+                  <div className="py-8 text-center text-xs text-muted-foreground italic">
+                    Configure a GitHub repo to see latest commits.
+                  </div>
+                ) : githubCommits.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-muted-foreground italic">
+                    No commits found or token missing.
+                  </div>
+                ) : (
+                  <div className="flow-root">
+                    <ul className="-mb-8">
+                      {githubCommits.map((c, idx) => (
+                        <li key={c.sha}>
+                          <div className="relative pb-8">
+                            {idx !== githubCommits.length - 1 && (
+                              <span
+                                className="absolute top-4 left-4 -ml-px h-full w-0.5 bg-border"
+                                aria-hidden="true"
+                              />
+                            )}
+                            <div className="relative flex space-x-3">
+                              <div className="shrink-0">
+                                <span className="h-8 w-8 rounded-full bg-secondary flex items-center justify-center ring-8 ring-card">
+                                  {c.author?.avatar_url ? (
+                                    <img
+                                      className="h-5 w-5 rounded-full"
+                                      src={c.author.avatar_url}
+                                      alt={c.commit.author?.name || "Author"}
+                                    />
+                                  ) : (
+                                    <GitCommit className="h-4 w-4 text-muted-foreground" />
+                                  )}
+                                </span>
+                              </div>
+                              <div className="flex-1 min-w-0 pt-1.5">
+                                <p className="text-xs text-foreground/90 font-medium line-clamp-2">
+                                  {c.commit.message}
+                                </p>
+                                <div className="text-[10px] text-muted-foreground mt-1 flex items-center justify-between">
+                                  <span className="truncate max-w-[80px]">
+                                    by {c.commit.author?.name || "Author"}
+                                  </span>
+                                  <a
+                                    href={c.html_url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="font-mono text-[9px] hover:text-primary hover:underline shrink-0 ml-2"
+                                  >
+                                    {c.sha.slice(0, 7)}
+                                  </a>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
 

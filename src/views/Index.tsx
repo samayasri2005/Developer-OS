@@ -16,6 +16,7 @@ import { ScratchpadView } from "@/components/flow/ScratchpadView";
 import { ProjectWorkspace } from "@/components/flow/ProjectWorkspace";
 import { CalendarView } from "@/components/flow/CalendarView";
 import { PomodoroWidget } from "@/components/flow/PomodoroWidget";
+import { StandupGenerator } from "@/components/flow/StandupGenerator";
 import { useTasks } from "@/store/tasks";
 
 interface Props {
@@ -105,6 +106,7 @@ const Index = ({ initialView = "today" }: Props) => {
     if (view === "commands") return <CommandsView />;
     if (view === "goals") return <GoalsView />;
     if (view === "settings") return <SettingsView />;
+    if (view === "digest") return <StandupGenerator />;
     if (view === "scratchpad") return <ScratchpadView />;
     if (typeof view === "string" && view.startsWith("project:")) {
       return <ProjectWorkspace projectId={view.split(":")[1]} />;
@@ -126,6 +128,8 @@ const Index = ({ initialView = "today" }: Props) => {
             navigate("/calendar");
           } else if (v === "settings") {
             navigate("/settings");
+          } else if (v === "digest") {
+            navigate("/digest");
           } else {
             navigate("/");
           }
@@ -187,6 +191,8 @@ const Index = ({ initialView = "today" }: Props) => {
             navigate("/calendar");
           } else if (v === "settings") {
             navigate("/settings");
+          } else if (v === "digest") {
+            navigate("/digest");
           } else {
             navigate("/");
           }

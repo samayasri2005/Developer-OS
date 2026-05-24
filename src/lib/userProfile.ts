@@ -33,6 +33,10 @@ export type UserProfile = {
     defaultRecipientEmail: string;
     apps: Record<string, AppNotificationPreferences>;
   };
+  apiKeys?: {
+    vercel?: string;
+    github?: string;
+  };
 };
 
 export const getDefaultAppPreferences = (): AppNotificationPreferences => ({
@@ -131,6 +135,24 @@ export const updateAppNotificationPreferences = async (
     for (const [key, value] of Object.entries(preferences.triggers)) {
       updates[`notificationPreferences.apps.${APP_ID}.triggers.${key}`] = value;
     }
+  }
+
+  await updateDoc(doc(db, "users", uid), updates);
+};
+
+export const updateApiKeys = async (
+  uid: string,
+  keys: { vercel?: string; github?: string },
+) => {
+  const updates: Record<string, unknown> = {
+    updatedAt: serverTimestamp(),
+  };
+
+  if (keys.vercel !== undefined) {
+    updates["apiKeys.vercel"] = keys.vercel;
+  }
+  if (keys.github !== undefined) {
+    updates["apiKeys.github"] = keys.github;
   }
 
   await updateDoc(doc(db, "users", uid), updates);

@@ -34,6 +34,7 @@ import {
   APP_ID,
   DEFAULT_SENDER_EMAIL,
   updateAppNotificationPreferences,
+  updateApiKeys,
 } from "@/lib/userProfile";
 import { sendNotificationTestEmail } from "@/lib/emailNotifications";
 import type { Project, ProjectEnvironment } from "@/lib/types";
@@ -41,7 +42,7 @@ import type { Project, ProjectEnvironment } from "@/lib/types";
 const Settings = () => {
   const { user, userProfile, signOut, refreshProfile } = useAuth();
   const [testingEmail, setTestingEmail] = useState(false);
-  const [activeTab, setActiveTab] = useState<"account" | "folders" | "projects" | "gcal" | "notifications">("account");
+  const [activeTab, setActiveTab] = useState<"account" | "folders" | "projects" | "gcal" | "notifications" | "integrations">("account");
 
   const folders = useTasks((s) => s.folders);
   const addFolder = useTasks((s) => s.addFolder);
@@ -76,6 +77,18 @@ const Settings = () => {
   const [gcalApiKeyInput, setGcalApiKeyInput] = useState(gcalApiKey || "");
   const [gcalSimulatedInput, setGcalSimulatedInput] = useState(isSimulatedSync);
   const [isSyncing, setIsSyncing] = useState(false);
+
+  const [vercelToken, setVercelToken] = useState("");
+  const [githubToken, setGithubToken] = useState("");
+
+  useEffect(() => {
+    if (userProfile?.apiKeys?.vercel) {
+      setVercelToken(userProfile.apiKeys.vercel);
+    }
+    if (userProfile?.apiKeys?.github) {
+      setGithubToken(userProfile.apiKeys.github);
+    }
+  }, [userProfile]);
 
   // Modal control
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
@@ -179,7 +192,7 @@ const Settings = () => {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-border bg-muted/20 p-1 rounded-lg max-w-fit">
-        {(["account", "folders", "projects", "gcal", "notifications"] as const).map((tab) => (
+        {(["account", "folders", "projects", "gcal", "notifications", "integrations"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -195,6 +208,8 @@ const Settings = () => {
               ? "Project Configurations" 
               : tab === "gcal" 
               ? "Google Calendar Sync" 
+              : tab === "integrations"
+              ? "Integrations"
               : tab.charAt(0).toUpperCase() + tab.slice(1)}
           </button>
         ))}
@@ -662,6 +677,93 @@ const Settings = () => {
             <Bell className="h-4 w-4" />
             {testingEmail ? "Sending Alert..." : "Test Dispatch Alert"}
           </button>
+        </section>
+      )}
+
+      {/* Integrations Tab */}
+      {activeTab === "integrations" && (
+        <section className="rounded-xl border border-border bg-card p-6 shadow-card space-y-6">
+          <div className="flex items-center gap-3">
+            <div className="rounded-lg bg-accent/10 p-2.5 text-primary">
+              <Globe className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-foreground">API Integrations</h2>
+              <p className="text-xs text-muted-foreground">Manage your credentials and keys for Vercel and GitHub APIs.</p>
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            {/* Vercel API card */}
+            <div className="p-4 rounded-lg border border-border bg-background space-y-4">
+              <div>
+                <h3 className="text-xs font-bold text-foreground uppercase tracking-wider">Vercel Integration</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Enter your Vercel Access Token to display build status and deployment history for your configured projects.
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-3 items-end">
+                <div className="flex-grow">
+                  <Field
+                    label="Vercel Access Token"
+                    value={vercelToken}
+                    onChange={setVercelToken}
+                    type="password"
+                  />
+                </div>
+                <button
+                  onClick={async () => {
+                    if (!user) return;
+                    try {
+                      await updateApiKeys(user.uid, { vercel: vercelToken });
+                      await refreshProfile();
+                      toast.success("Vercel integration token saved");
+                    } catch (err) {
+                      toast.error("Failed to save Vercel token");
+                    }
+                  }}
+                  className="rounded-lg bg-primary text-primary-foreground px-4 py-2 text-xs font-semibold hover:opacity-90 transition h-9 shrink-0"
+                >
+                  Save Vercel Key
+                </button>
+              </div>
+            </div>
+
+            {/* GitHub API card */}
+            <div className="p-4 rounded-lg border border-border bg-background space-y-4">
+              <div>
+                <h3 className="text-xs font-bold text-foreground uppercase tracking-wider">GitHub Integration</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Enter a GitHub Personal Access Token (PAT) with repository read access to display recent commits in your Project Workspace.
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-3 items-end">
+                <div className="flex-grow">
+                  <Field
+                    label="GitHub Personal Access Token"
+                    value={githubToken}
+                    onChange={setGithubToken}
+                    type="password"
+                  />
+                </div>
+                <button
+                  onClick={async () => {
+                    if (!user) return;
+                    try {
+                      await updateApiKeys(user.uid, { github: githubToken });
+                      await refreshProfile();
+                      toast.success("GitHub integration token saved");
+                    } catch (err) {
+                      toast.error("Failed to save GitHub token");
+                    }
+                  }}
+                  className="rounded-lg bg-primary text-primary-foreground px-4 py-2 text-xs font-semibold hover:opacity-90 transition h-9 shrink-0"
+                >
+                  Save GitHub Key
+                </button>
+              </div>
+            </div>
+          </div>
         </section>
       )}
 

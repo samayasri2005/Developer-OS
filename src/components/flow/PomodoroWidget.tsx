@@ -43,6 +43,17 @@ export function PomodoroWidget() {
         if (mode === "work") {
           const nextCycles = cycles + 1;
           setCycles(nextCycles);
+          try {
+            const logsStr = localStorage.getItem("dev_os_focus_logs") || "[]";
+            const logs = JSON.parse(logsStr);
+            logs.push({
+              timestamp: new Date().toISOString(),
+              durationMinutes: 25
+            });
+            localStorage.setItem("dev_os_focus_logs", JSON.stringify(logs));
+          } catch (e) {
+            console.error("Failed to save focus log:", e);
+          }
           if (nextCycles % 4 === 0) {
             setMode("longBreak");
             setTimeLeft(DURATIONS.longBreak);
