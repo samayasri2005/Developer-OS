@@ -266,7 +266,11 @@ export const useTasks = create<State>()((set, get) => ({
             development: { deployUrl: "http://localhost:3000", notes: "Local development server", commands: "npm run dev" },
             staging: { deployUrl: "https://staging.example.com", notes: "Staging deployment pipeline" },
             production: { deployUrl: "https://example.com", notes: "Live production website" },
-          }
+          },
+          techStack: [],
+          accounts: [],
+          aiTools: [],
+          configs: []
         };
         await saveProject(userUid, defaultProject);
 
@@ -669,6 +673,10 @@ export const useTasks = create<State>()((set, get) => ({
         { id: "production", name: "Production", enabled: true },
       ],
       customFields: [],
+      techStack: [],
+      accounts: [],
+      aiTools: [],
+      configs: [],
     };
     set({ projects: [...get().projects, p], selectedProjectId: p.id });
     const { currentUid } = get();

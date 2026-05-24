@@ -3,7 +3,8 @@ import { useTasks } from "@/store/tasks";
 import {
   Cpu, Terminal, Notebook, CheckSquare, Plus, Trash2,
   ExternalLink, Copy, Check, FileText, Globe, GitBranch,
-  PlayCircle, Edit3, Save, X, ArrowUpRight, Link2, Sparkles
+  PlayCircle, Edit3, Save, X, ArrowUpRight, Link2, Sparkles,
+  Bot, UserCheck, FileJson, Layers
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -41,7 +42,7 @@ export function ProjectWorkspace({ projectId }: Props) {
 
   const project = useMemo(() => projects.find((p) => p.id === projectId), [projects, projectId]);
 
-  const [activeTab, setActiveTab] = useState<"environments" | "tasks" | "improvements" | "notes" | "links" | "commands">("environments");
+  const [activeTab, setActiveTab] = useState<"environments" | "tasks" | "improvements" | "notes" | "links" | "commands" | "techstack" | "accounts" | "ai_tools" | "configs">("environments");
 
   // Local state for inline forms
   const [editingEnv, setEditingEnv] = useState<string | null>(null);
@@ -68,6 +69,19 @@ export function ProjectWorkspace({ projectId }: Props) {
   const [cmdCat, setCmdCat] = useState("Setup");
   const [linkTitle, setLinkTitle] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
+
+  const [tsName, setTsName] = useState("");
+  const [tsCat, setTsCat] = useState<"frontend" | "backend" | "database" | "tooling" | "other">("frontend");
+  const [tsVersion, setTsVersion] = useState("");
+
+  const [accPlatform, setAccPlatform] = useState("");
+  const [accName, setAccName] = useState("");
+
+  const [aiToolName, setAiToolName] = useState("");
+  const [aiAccount, setAiAccount] = useState("");
+
+  const [confLabel, setConfLabel] = useState("");
+  const [confPath, setConfPath] = useState("");
 
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -194,6 +208,58 @@ export function ProjectWorkspace({ projectId }: Props) {
     toast.success("Link removed");
   };
 
+  const handleAddTechStack = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!tsName.trim()) return;
+    const newItem = { id: Math.random().toString(36).slice(2, 10), name: tsName.trim(), category: tsCat, version: tsVersion.trim() };
+    updateProject(project.id, { techStack: [...(project.techStack || []), newItem] });
+    setTsName(""); setTsVersion("");
+    toast.success("Tech stack item added");
+  };
+  const handleDeleteTechStack = (id: string) => {
+    updateProject(project.id, { techStack: (project.techStack || []).filter((x) => x.id !== id) });
+    toast.success("Tech stack item removed");
+  };
+
+  const handleAddAccount = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!accPlatform.trim() || !accName.trim()) return;
+    const newItem = { id: Math.random().toString(36).slice(2, 10), platform: accPlatform.trim(), accountName: accName.trim() };
+    updateProject(project.id, { accounts: [...(project.accounts || []), newItem] });
+    setAccPlatform(""); setAccName("");
+    toast.success("Account linked");
+  };
+  const handleDeleteAccount = (id: string) => {
+    updateProject(project.id, { accounts: (project.accounts || []).filter((x) => x.id !== id) });
+    toast.success("Account unlinked");
+  };
+
+  const handleAddAITool = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!aiToolName.trim() || !aiAccount.trim()) return;
+    const newItem = { id: Math.random().toString(36).slice(2, 10), toolName: aiToolName.trim(), account: aiAccount.trim() };
+    updateProject(project.id, { aiTools: [...(project.aiTools || []), newItem] });
+    setAiToolName(""); setAiAccount("");
+    toast.success("AI tool linked");
+  };
+  const handleDeleteAITool = (id: string) => {
+    updateProject(project.id, { aiTools: (project.aiTools || []).filter((x) => x.id !== id) });
+    toast.success("AI tool removed");
+  };
+
+  const handleAddConfig = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!confLabel.trim() || !confPath.trim()) return;
+    const newItem = { id: Math.random().toString(36).slice(2, 10), label: confLabel.trim(), path: confPath.trim() };
+    updateProject(project.id, { configs: [...(project.configs || []), newItem] });
+    setConfLabel(""); setConfPath("");
+    toast.success("Config map added");
+  };
+  const handleDeleteConfig = (id: string) => {
+    updateProject(project.id, { configs: (project.configs || []).filter((x) => x.id !== id) });
+    toast.success("Config map removed");
+  };
+
   // Filters for project-linked entities
   const projectTasks = tasks.filter((t) => t.projectId === project.id);
   const projectImprovements = improvements.filter((imp) => imp.projectId === project.id);
@@ -291,7 +357,10 @@ export function ProjectWorkspace({ projectId }: Props) {
           { id: "improvements", label: `Improvements (${projectImprovements.filter((i) => !i.done).length})`, icon: Sparkles },
           { id: "notes", label: `Notes (${projectNotes.length})`, icon: Notebook },
           { id: "links", label: `Links (${(project.links || []).length})`, icon: Link2 },
-          { id: "commands", label: `CLI Snippets (${projectCommands.length})`, icon: Terminal },
+          { id: "techstack", label: `Tech Stack (${(project.techStack || []).length})`, icon: Layers },
+          { id: "accounts", label: `Accounts (${(project.accounts || []).length})`, icon: UserCheck },
+          { id: "ai_tools", label: `AI Tools (${(project.aiTools || []).length})`, icon: Bot },
+          { id: "configs", label: `Configs (${(project.configs || []).length})`, icon: FileJson },
         ] as const).map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -887,6 +956,170 @@ export function ProjectWorkspace({ projectId }: Props) {
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 7: Tech Stack */}
+        {activeTab === "techstack" && (
+          <div className="space-y-4">
+            <form onSubmit={handleAddTechStack} className="flex gap-2 flex-wrap items-center">
+              <input
+                value={tsName}
+                onChange={(e) => setTsName(e.target.value)}
+                placeholder="Tech Name (e.g. Next.js)"
+                className="flex-1 min-w-[150px] text-xs bg-card border border-border rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-primary"
+              />
+              <input
+                value={tsVersion}
+                onChange={(e) => setTsVersion(e.target.value)}
+                placeholder="Version (e.g. 14.2)"
+                className="w-[100px] text-xs bg-card border border-border rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-primary"
+              />
+              <select
+                value={tsCat}
+                onChange={(e) => setTsCat(e.target.value as any)}
+                className="text-xs bg-card border border-border rounded-lg px-3 py-2 outline-none cursor-pointer"
+              >
+                <option value="frontend">Frontend</option>
+                <option value="backend">Backend</option>
+                <option value="database">Database</option>
+                <option value="tooling">Tooling</option>
+                <option value="other">Other</option>
+              </select>
+              <button type="submit" className="px-4 py-2 rounded-lg bg-foreground text-background text-xs font-semibold hover:opacity-95 transition-opacity flex items-center gap-1.5">
+                <Plus className="h-3.5 w-3.5" /> Add
+              </button>
+            </form>
+            <div className="rounded-xl border border-border bg-card p-4 space-y-2">
+              {!(project.techStack?.length) ? (
+                <div className="text-center py-8 text-xs text-muted-foreground">No tech stack items added.</div>
+              ) : (
+                project.techStack.map((item) => (
+                  <div key={item.id} className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg border border-border/40 bg-secondary/20">
+                    <div>
+                      <span className="text-xs font-medium text-foreground">{item.name}</span>
+                      {item.version && <span className="text-[10px] text-muted-foreground ml-2 font-mono">v{item.version}</span>}
+                      <span className="text-[9px] uppercase tracking-wider text-muted-foreground bg-secondary px-1.5 rounded ml-2">{item.category}</span>
+                    </div>
+                    <button onClick={() => handleDeleteTechStack(item.id)} className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/5"><Trash2 className="h-3.5 w-3.5" /></button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 8: Accounts */}
+        {activeTab === "accounts" && (
+          <div className="space-y-4">
+            <form onSubmit={handleAddAccount} className="flex gap-2 flex-wrap items-center">
+              <input
+                value={accPlatform}
+                onChange={(e) => setAccPlatform(e.target.value)}
+                placeholder="Platform (e.g. GitHub)"
+                className="flex-1 min-w-[150px] text-xs bg-card border border-border rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-primary"
+              />
+              <input
+                value={accName}
+                onChange={(e) => setAccName(e.target.value)}
+                placeholder="Account Name/Email"
+                className="flex-[2] min-w-[200px] text-xs bg-card border border-border rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-primary"
+              />
+              <button type="submit" className="px-4 py-2 rounded-lg bg-foreground text-background text-xs font-semibold hover:opacity-95 transition-opacity flex items-center gap-1.5">
+                <Plus className="h-3.5 w-3.5" /> Link Account
+              </button>
+            </form>
+            <div className="rounded-xl border border-border bg-card p-4 space-y-2">
+              {!(project.accounts?.length) ? (
+                <div className="text-center py-8 text-xs text-muted-foreground">No accounts linked yet.</div>
+              ) : (
+                project.accounts.map((acc) => (
+                  <div key={acc.id} className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg border border-border/40 bg-secondary/20">
+                    <div className="flex gap-4">
+                      <span className="text-xs font-bold text-foreground w-[100px] truncate">{acc.platform}</span>
+                      <span className="text-xs text-muted-foreground">{acc.accountName}</span>
+                    </div>
+                    <button onClick={() => handleDeleteAccount(acc.id)} className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/5"><Trash2 className="h-3.5 w-3.5" /></button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 9: AI Tools */}
+        {activeTab === "ai_tools" && (
+          <div className="space-y-4">
+            <form onSubmit={handleAddAITool} className="flex gap-2 flex-wrap items-center">
+              <input
+                value={aiToolName}
+                onChange={(e) => setAiToolName(e.target.value)}
+                placeholder="AI Tool (e.g. Cursor)"
+                className="flex-1 min-w-[150px] text-xs bg-card border border-border rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-primary"
+              />
+              <input
+                value={aiAccount}
+                onChange={(e) => setAiAccount(e.target.value)}
+                placeholder="Account Linked"
+                className="flex-[2] min-w-[200px] text-xs bg-card border border-border rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-primary"
+              />
+              <button type="submit" className="px-4 py-2 rounded-lg bg-foreground text-background text-xs font-semibold hover:opacity-95 transition-opacity flex items-center gap-1.5">
+                <Plus className="h-3.5 w-3.5" /> Log Tool
+              </button>
+            </form>
+            <div className="rounded-xl border border-border bg-card p-4 space-y-2">
+              {!(project.aiTools?.length) ? (
+                <div className="text-center py-8 text-xs text-muted-foreground">No AI tools logged yet.</div>
+              ) : (
+                project.aiTools.map((tool) => (
+                  <div key={tool.id} className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg border border-border/40 bg-secondary/20">
+                    <div className="flex gap-4">
+                      <span className="text-xs font-bold text-cyan-500 w-[100px] truncate">{tool.toolName}</span>
+                      <span className="text-xs text-muted-foreground">{tool.account}</span>
+                    </div>
+                    <button onClick={() => handleDeleteAITool(tool.id)} className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/5"><Trash2 className="h-3.5 w-3.5" /></button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 10: Config Maps */}
+        {activeTab === "configs" && (
+          <div className="space-y-4">
+            <form onSubmit={handleAddConfig} className="flex gap-2 flex-wrap items-center">
+              <input
+                value={confLabel}
+                onChange={(e) => setConfLabel(e.target.value)}
+                placeholder="Config Label (e.g. Dev .env)"
+                className="flex-1 min-w-[150px] text-xs bg-card border border-border rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-primary"
+              />
+              <input
+                value={confPath}
+                onChange={(e) => setConfPath(e.target.value)}
+                placeholder="File path or Secret Name"
+                className="flex-[2] min-w-[200px] text-xs bg-card border border-border rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-primary"
+              />
+              <button type="submit" className="px-4 py-2 rounded-lg bg-foreground text-background text-xs font-semibold hover:opacity-95 transition-opacity flex items-center gap-1.5">
+                <Plus className="h-3.5 w-3.5" /> Add Config
+              </button>
+            </form>
+            <div className="rounded-xl border border-border bg-card p-4 space-y-2">
+              {!(project.configs?.length) ? (
+                <div className="text-center py-8 text-xs text-muted-foreground">No configurations mapped yet.</div>
+              ) : (
+                project.configs.map((conf) => (
+                  <div key={conf.id} className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg border border-border/40 bg-secondary/20">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-xs font-bold text-foreground">{conf.label}</span>
+                      <span className="text-[11px] font-mono text-muted-foreground">{conf.path}</span>
+                    </div>
+                    <button onClick={() => handleDeleteConfig(conf.id)} className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/5"><Trash2 className="h-3.5 w-3.5" /></button>
                   </div>
                 ))
               )}

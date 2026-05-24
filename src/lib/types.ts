@@ -77,6 +77,33 @@ export interface ProjectEnvironment {
   commands?: string;
 }
 
+export interface ProjectTechStack {
+  id: string;
+  name: string;
+  version?: string;
+  category: "frontend" | "backend" | "database" | "tooling" | "other";
+}
+
+export interface ProjectAccount {
+  id: string;
+  platform: string;
+  accountName: string;
+}
+
+export interface ProjectAITool {
+  id: string;
+  toolName: string;
+  account: string;
+  notes?: string;
+}
+
+export interface ProjectConfig {
+  id: string;
+  label: string;
+  path: string;
+  notes?: string;
+}
+
 export interface Project {
   id: string;
   userId?: string;
@@ -90,6 +117,10 @@ export interface Project {
   stages?: { id: string; name: string; enabled: boolean }[];
   customFields?: { id: string; label: string; value: string }[];
   links?: LinkRef[];
+  techStack?: ProjectTechStack[];
+  accounts?: ProjectAccount[];
+  aiTools?: ProjectAITool[];
+  configs?: ProjectConfig[];
 }
 
 export interface Improvement {
