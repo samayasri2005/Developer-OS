@@ -67,6 +67,8 @@ export function ProjectWorkspace({ projectId }: Props) {
   const [cmdLabel, setCmdLabel] = useState("");
   const [cmdText, setCmdText] = useState("");
   const [cmdCat, setCmdCat] = useState("Setup");
+  const [cmdLang, setCmdLang] = useState("bash");
+  const [cmdMultiline, setCmdMultiline] = useState(false);
   const [linkTitle, setLinkTitle] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
 
@@ -861,58 +863,83 @@ export function ProjectWorkspace({ projectId }: Props) {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                if (cmdLabel.trim() && cmdText.trim()) {
-                  addCommand({
-                    label: cmdLabel.trim(),
-                    command: cmdText.trim(),
-                    category: cmdCat,
-                    projectId: project.id,
-                  });
-                  setCmdLabel("");
-                  setCmdText("");
-                  setCmdCat("Setup");
-                  toast.success("Command snippet registered");
-                }
+                if (!cmdText.trim()) return;
+                addCommand({
+                  label: cmdLabel.trim() || cmdText.trim().slice(0, 30),
+                  command: cmdText.trim(),
+                  category: cmdCat,
+                  language: cmdLang,
+                  isMultiline: cmdMultiline,
+                  projectId: project.id,
+                });
+                setCmdLabel("");
+                setCmdText("");
               }}
-              className="flex gap-2 flex-wrap items-end border border-border bg-card p-4 rounded-xl"
+              className="flex flex-col gap-3"
             >
-              <div className="flex-1 min-w-[140px] space-y-1">
-                <label className="text-[10px] font-semibold text-muted-foreground">Label</label>
-                <input
-                  value={cmdLabel}
-                  onChange={(e) => setCmdLabel(e.target.value)}
-                  placeholder="e.g. Deploy Production"
-                  className="w-full text-xs bg-secondary border border-border rounded px-2.5 py-1.5 outline-none"
-                />
+              <div className="flex gap-2 flex-wrap items-start">
+                <div className="flex-1 min-w-[150px] space-y-1">
+                  <label className="text-[10px] font-semibold text-muted-foreground">Label</label>
+                  <input
+                    value={cmdLabel}
+                    onChange={(e) => setCmdLabel(e.target.value)}
+                    placeholder="e.g. Deploy Production"
+                    className="w-full text-xs bg-secondary border border-border rounded px-2.5 py-1.5 outline-none"
+                  />
+                </div>
+                <div className="w-[100px] space-y-1">
+                  <label className="text-[10px] font-semibold text-muted-foreground">Language</label>
+                  <input
+                    value={cmdLang}
+                    onChange={(e) => setCmdLang(e.target.value)}
+                    placeholder="e.g. bash"
+                    className="w-full text-xs bg-secondary border border-border rounded px-2.5 py-1.5 outline-none"
+                  />
+                </div>
+                <div className="w-[100px] space-y-1">
+                  <label className="text-[10px] font-semibold text-muted-foreground">Category</label>
+                  <select
+                    value={cmdCat}
+                    onChange={(e) => setCmdCat(e.target.value)}
+                    className="w-full text-xs bg-secondary border border-border rounded px-2.5 py-1.5 outline-none cursor-pointer"
+                  >
+                    <option value="Setup">Setup</option>
+                    <option value="Run">Run</option>
+                    <option value="Build">Build</option>
+                    <option value="Deploy">Deploy</option>
+                    <option value="Utils">Utils</option>
+                  </select>
+                </div>
+                <div className="flex items-end pb-1 h-full pt-5">
+                  <label className="flex items-center gap-1.5 text-[11px] font-semibold cursor-pointer">
+                    <input type="checkbox" checked={cmdMultiline} onChange={(e) => setCmdMultiline(e.target.checked)} className="rounded border-border bg-secondary" />
+                    Multiline
+                  </label>
+                </div>
               </div>
-              <div className="flex-[2] min-w-[200px] space-y-1">
-                <label className="text-[10px] font-semibold text-muted-foreground">Command Snippet</label>
-                <input
-                  value={cmdText}
-                  onChange={(e) => setCmdText(e.target.value)}
-                  placeholder="e.g. firebase deploy --only hosting"
-                  className="w-full text-xs font-mono bg-secondary border border-border rounded px-2.5 py-1.5 outline-none"
-                />
-              </div>
-              <div className="w-[120px] space-y-1">
-                <label className="text-[10px] font-semibold text-muted-foreground">Category</label>
-                <select
-                  value={cmdCat}
-                  onChange={(e) => setCmdCat(e.target.value)}
-                  className="w-full text-xs bg-secondary border border-border rounded px-2.5 py-1.5 outline-none cursor-pointer"
-                >
-                  <option value="Setup">Setup</option>
-                  <option value="Run">Run</option>
-                  <option value="Build">Build</option>
-                  <option value="Deploy">Deploy</option>
-                  <option value="Utils">Utils</option>
-                </select>
+              <div className="space-y-1">
+                <label className="text-[10px] font-semibold text-muted-foreground">Snippet Code</label>
+                {cmdMultiline ? (
+                  <textarea
+                    value={cmdText}
+                    onChange={(e) => setCmdText(e.target.value)}
+                    placeholder="Multi-line script or code here..."
+                    className="w-full text-xs font-mono bg-secondary border border-border rounded px-2.5 py-2 outline-none min-h-[100px] resize-y"
+                  />
+                ) : (
+                  <input
+                    value={cmdText}
+                    onChange={(e) => setCmdText(e.target.value)}
+                    placeholder="e.g. firebase deploy --only hosting"
+                    className="w-full text-xs font-mono bg-secondary border border-border rounded px-2.5 py-1.5 outline-none"
+                  />
+                )}
               </div>
               <button
                 type="submit"
-                className="h-8 px-4 rounded bg-foreground text-background text-xs font-semibold hover:opacity-90 transition-opacity"
+                className="h-8 px-4 rounded bg-foreground text-background text-xs font-semibold hover:opacity-90 transition-opacity self-start"
               >
-                Add Snippet
+                Save Snippet
               </button>
             </form>
 
@@ -933,8 +960,15 @@ export function ProjectWorkspace({ projectId }: Props) {
                         <span className="text-[9px] uppercase tracking-wider text-muted-foreground bg-secondary px-1.5 rounded">
                           {c.category}
                         </span>
+                        {c.language && (
+                          <span className="text-[9px] uppercase tracking-wider text-muted-foreground bg-secondary px-1.5 rounded">
+                            {c.language}
+                          </span>
+                        )}
                       </div>
-                      <code className="text-[11px] font-mono text-cyan-500 block truncate mt-1">{c.command}</code>
+                      <pre className="text-[11px] font-mono text-cyan-500 bg-secondary/20 p-2 rounded block w-full mt-1 overflow-x-auto">
+                        <code>{c.command}</code>
+                      </pre>
                     </div>
 
                     <div className="flex items-center gap-1 shrink-0">

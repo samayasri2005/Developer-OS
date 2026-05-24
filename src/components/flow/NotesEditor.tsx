@@ -78,6 +78,15 @@ export function NotesEditor({ value, onChange, placeholder, minRows = 5, autoFoc
       ) : (
         <div
           className="prose-notes px-3 py-2.5 text-[13.5px] leading-relaxed"
+          onClick={(e) => {
+            const target = e.target as HTMLElement;
+            if (target.classList.contains("md-bidirectional-link")) {
+              const linkTarget = target.dataset.target;
+              if (linkTarget) {
+                window.dispatchEvent(new CustomEvent("flow:navigate-bidi", { detail: linkTarget }));
+              }
+            }
+          }}
           dangerouslySetInnerHTML={{ __html: value.trim() ? renderMarkdown(value) : `<p class="text-muted-foreground">${placeholder ?? "Nothing to preview yet."}</p>` }}
         />
       )}

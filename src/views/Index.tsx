@@ -10,10 +10,12 @@ import { TaskDetail } from "@/components/flow/TaskDetail";
 import { CommandPalette, type CommandView } from "@/components/flow/CommandPalette";
 import { NotesView } from "@/components/flow/NotesView";
 import { CommandsView } from "@/components/flow/CommandsView";
+import { GoalsView } from "@/components/flow/GoalsView";
 import SettingsView from "@/views/Settings";
 import { ScratchpadView } from "@/components/flow/ScratchpadView";
 import { ProjectWorkspace } from "@/components/flow/ProjectWorkspace";
 import { CalendarView } from "@/components/flow/CalendarView";
+import { PomodoroWidget } from "@/components/flow/PomodoroWidget";
 import { useTasks } from "@/store/tasks";
 
 interface Props {
@@ -45,8 +47,29 @@ const Index = ({ initialView = "today" }: Props) => {
       const v = (e as CustomEvent).detail as View;
       if (v) setView(v);
     };
+    const onBidiNav = (e: Event) => {
+      const targetName = (e as CustomEvent).detail as string;
+      const state = useTasks.getState();
+      const proj = state.projects.find((p) => p.name.toLowerCase() === targetName.toLowerCase());
+      if (proj) {
+        setView(`project:${proj.id}`);
+        return;
+      }
+      const note = state.notes.find((n) => n.title.toLowerCase() === targetName.toLowerCase());
+      if (note) {
+        setView("notes");
+        state.selectNote(note.id);
+        return;
+      }
+      // If nothing found, just console.warn for now
+      console.warn(`Bidirectional link target "${targetName}" not found.`);
+    };
     window.addEventListener("flow:navigate", onNav);
-    return () => window.removeEventListener("flow:navigate", onNav);
+    window.addEventListener("flow:navigate-bidi", onBidiNav);
+    return () => {
+      window.removeEventListener("flow:navigate", onNav);
+      window.removeEventListener("flow:navigate-bidi", onBidiNav);
+    };
   }, []);
 
   useEffect(() => {
@@ -80,6 +103,7 @@ const Index = ({ initialView = "today" }: Props) => {
     if (view === "all") return <AllTasks scope="all" />;
     if (view === "notes") return <NotesView />;
     if (view === "commands") return <CommandsView />;
+    if (view === "goals") return <GoalsView />;
     if (view === "settings") return <SettingsView />;
     if (view === "scratchpad") return <ScratchpadView />;
     if (typeof view === "string" && view.startsWith("project:")) {
@@ -171,11 +195,13 @@ const Index = ({ initialView = "today" }: Props) => {
 
       <button
         onClick={() => setQuickAddOpen(true)}
-        className="fixed bottom-6 right-6 sm:hidden h-12 w-12 rounded-full bg-gradient-primary shadow-glow grid place-items-center text-primary-foreground"
+        className="fixed bottom-6 right-6 sm:hidden h-12 w-12 rounded-full bg-gradient-primary shadow-glow grid place-items-center text-primary-foreground z-40"
         aria-label="Create task"
       >
         <Plus className="h-5 w-5" />
       </button>
+      
+      <PomodoroWidget />
     </div>
   );
 };

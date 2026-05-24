@@ -208,9 +208,9 @@ export function CommandsView() {
   const [gitUrl, setGitUrl] = useState("");
   const [placeholderValues, setPlaceholderValues] = useState<Record<string, string>>({});
 
-  // Filter commands for Quick Commands tab (exclude multi-line playbooks)
+  // Filter commands for Quick Commands tab (exclude playbooks)
   const quickCommands = useMemo(() => {
-    return commands.filter((c) => c.category !== "playbook" && !c.command.includes("\n") && !c.command.includes("{{"));
+    return commands.filter((c) => c.category !== "playbook");
   }, [commands]);
 
   // Extract custom playbooks
@@ -607,11 +607,22 @@ export function CommandsView() {
                         {cmd.label && cmd.label !== cmd.command && (
                           <p className="text-[13px] font-medium text-foreground mb-0.5">{cmd.label}</p>
                         )}
-                        <code className="text-[12.5px] font-mono text-foreground/80 break-all">{cmd.command}</code>
+                        {cmd.isMultiline || cmd.command.includes('\n') ? (
+                          <pre className="text-[12.5px] font-mono text-cyan-500 bg-secondary/30 p-2 rounded block w-full mt-1 overflow-x-auto">
+                            <code>{cmd.command}</code>
+                          </pre>
+                        ) : (
+                          <code className="text-[12.5px] font-mono text-foreground/80 break-all">{cmd.command}</code>
+                        )}
                       </div>
                       {cmd.projectId && (
                         <span className="shrink-0 text-[10px] font-mono text-cyan-500 bg-cyan-500/10 px-1.5 py-0.5 rounded truncate max-w-[120px]" title={projects.find((p) => p.id === cmd.projectId)?.name || "Project"}>
                           {projects.find((p) => p.id === cmd.projectId)?.name || "project"}
+                        </span>
+                      )}
+                      {cmd.language && (
+                        <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded border bg-secondary text-muted-foreground">
+                          {cmd.language}
                         </span>
                       )}
                       <span className={cn(

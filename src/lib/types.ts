@@ -65,6 +65,8 @@ export interface Command {
   label: string;
   command: string;
   category: string;
+  language?: string;
+  isMultiline?: boolean;
   createdAt: string;
   projectId?: string;
 }
@@ -146,4 +148,15 @@ export interface Scratchpad {
   userId: string;
   content: string;
   updatedAt: string;
+}
+
+export interface Goal {
+  id: string;
+  userId?: string;
+  title: string;
+  description?: string;
+  timeframe: "week" | "month" | "quarter" | "year";
+  status: "todo" | "doing" | "done";
+  progress?: number;
+  createdAt: string;
 }

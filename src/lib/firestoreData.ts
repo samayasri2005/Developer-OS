@@ -23,7 +23,7 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "./firebase";
-import type { Task, Note, Folder, Command, Project, Improvement, ActivityLog, Scratchpad } from "./types";
+import type { Task, Note, Folder, Command, Project, Improvement, ActivityLog, Scratchpad, Goal } from "./types";
 
 // ── Folders ────────────────────────────────────────────────────────────────
 
@@ -177,4 +177,20 @@ export const saveScratchpad = async (uid: string, content: string): Promise<void
     content,
     updatedAt: new Date().toISOString(),
   });
+};
+
+// ── Goals ──────────────────────────────────────────────────────────────────
+
+export const fetchGoals = async (uid: string): Promise<Goal[]> => {
+  const q = query(collection(db, "dev_goals"), where("userId", "==", uid));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => d.data() as Goal);
+};
+
+export const saveGoal = async (uid: string, goal: Goal): Promise<void> => {
+  await setDoc(doc(db, "dev_goals", goal.id), { ...goal, userId: uid });
+};
+
+export const deleteGoal = async (uid: string, id: string): Promise<void> => {
+  await deleteDoc(doc(db, "dev_goals", id));
 };

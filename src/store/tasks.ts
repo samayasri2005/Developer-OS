@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { isToday, isPast, parseISO, startOfDay } from "date-fns";
 import { toast } from "sonner";
-import type { Folder, LinkRef, Note, Priority, Recurrence, Status, Subtask, Task, Command, Project, Improvement, ActivityLog, Scratchpad } from "@/lib/types";
+import type { Folder, LinkRef, Note, Priority, Recurrence, Status, Subtask, Task, Command, Project, Improvement, ActivityLog, Scratchpad, Goal } from "@/lib/types";
 import {
   fetchFolders,
   fetchTasks,
@@ -28,6 +28,9 @@ import {
   saveActivityLog,
   fetchScratchpad,
   saveScratchpad,
+  fetchGoals,
+  saveGoal,
+  deleteGoal as fsDeleteGoal,
 } from "@/lib/firestoreData";
 
 const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
@@ -130,6 +133,12 @@ interface State {
   deleteImprovement: (id: string) => void;
   convertImprovementToTask: (id: string) => void;
 
+  // Goals
+  goals: Goal[];
+  addGoal: (title: string, timeframe: Goal["timeframe"], description?: string) => Goal;
+  updateGoal: (id: string, patch: Partial<Goal>) => void;
+  deleteGoal: (id: string) => void;
+
   // Scratchpad
   updateScratchpad: (content: string) => void;
 
@@ -201,6 +210,7 @@ const emptyState = {
   projects: [] as Project[],
   improvements: [] as Improvement[],
   activities: [] as ActivityLog[],
+  goals: [] as Goal[],
   scratchpad: "",
   selectedProjectId: null as string | null,
   gcalConnected: gcalData.connected,
@@ -221,7 +231,7 @@ export const useTasks = create<State>()((set, get) => ({
   initStore: async (userUid: string) => {
     set({ loading: true, currentUid: userUid });
     try {
-      const [folders, tasks, notes, commands, projects, improvements, activities, scratchpadDoc] = await Promise.all([
+      const [folders, tasks, notes, commands, projects, improvements, activities, scratchpadDoc, goals] = await Promise.all([
         fetchFolders(userUid),
         fetchTasks(userUid),
         fetchNotes(userUid),
@@ -230,6 +240,7 @@ export const useTasks = create<State>()((set, get) => ({
         fetchImprovements(userUid),
         fetchActivityLogs(userUid),
         fetchScratchpad(userUid),
+        fetchGoals(userUid),
       ]);
 
       // Seed defaults for brand-new users
@@ -281,6 +292,7 @@ export const useTasks = create<State>()((set, get) => ({
           commands: [],
           projects: [defaultProject],
           improvements: [],
+          goals: [],
           activities: [],
           scratchpad: "",
           loading: false
@@ -295,6 +307,7 @@ export const useTasks = create<State>()((set, get) => ({
         commands,
         projects,
         improvements,
+        goals,
         activities: activities.sort((a, b) => b.timestamp.localeCompare(a.timestamp)),
         scratchpad: scratchpadDoc?.content ?? "",
         loading: false
@@ -645,6 +658,7 @@ export const useTasks = create<State>()((set, get) => ({
 
   projects: [],
   improvements: [],
+  goals: [],
   activities: [],
   scratchpad: "",
   selectedProjectId: null,
@@ -770,12 +784,54 @@ export const useTasks = create<State>()((set, get) => ({
     get().logActivity("project_updated", `Converted improvement "${imp.title}" to a task`, { projectId: imp.projectId, taskId: task.id });
   },
 
+  // ── Goals ────────────────────────────────────────────────────────────────
+
+  addGoal: (title, timeframe, description) => {
+    const uid = get().currentUid;
+    if (!uid) throw new Error("No user");
+    const newGoal: Goal = {
+      id: `goal_${Date.now()}_${Math.random().toString(36).substring(2)}`,
+      title,
+      description,
+      timeframe,
+      status: "todo",
+      createdAt: new Date().toISOString(),
+    };
+    set((s) => ({ goals: [...s.goals, newGoal] }));
+    saveGoal(uid, newGoal).catch((e) => console.error(e));
+    return newGoal;
+  },
+  updateGoal: (id, patch) => {
+    const uid = get().currentUid;
+    if (!uid) return;
+    let updated: Goal | null = null;
+    set((s) => ({
+      goals: s.goals.map((g) => {
+        if (g.id === id) {
+          updated = { ...g, ...patch };
+          return updated;
+        }
+        return g;
+      }),
+    }));
+    if (updated) {
+      saveGoal(uid, updated).catch((e) => console.error(e));
+    }
+  },
+  deleteGoal: (id) => {
+    const uid = get().currentUid;
+    if (!uid) return;
+    set((s) => ({ goals: s.goals.filter((g) => g.id !== id) }));
+    fsDeleteGoal(uid, id).catch((e) => console.error(e));
+  },
+
   // ── Scratchpad ───────────────────────────────────────────────────────────
 
   updateScratchpad: (content) => {
+    const uid = get().currentUid;
+    if (!uid) return;
     set({ scratchpad: content });
-    const { currentUid } = get();
-    if (currentUid) saveScratchpad(currentUid, content).catch(console.error);
+    saveScratchpad(uid, content).catch((e) => console.error("Failed to save scratchpad", e));
   },
 
   // ── Activities ───────────────────────────────────────────────────────────

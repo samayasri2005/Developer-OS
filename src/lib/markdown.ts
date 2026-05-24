@@ -29,6 +29,11 @@ export function renderMarkdown(src: string): string {
       /(https?:\/\/[^\s<)]+)/g,
       '<a href="$1" target="_blank" rel="noreferrer" class="md-link">$1</a>'
     );
+    // Bidirectional links
+    v = v.replace(
+      /\[\[([^\]]+)\]\]/g,
+      '<button type="button" class="md-bidirectional-link text-cyan-500 hover:underline font-semibold tracking-tight" data-target="$1">[[$1]]</button>'
+    );
     return v;
   };
 

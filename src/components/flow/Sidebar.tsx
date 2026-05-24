@@ -3,13 +3,13 @@ import {
   KanbanSquare, ListChecks, Folder as FolderIcon,
   Plus, CalendarDays, LayoutDashboard,
   Settings, NotebookPen, Terminal, Code2,
-  Cpu, StickyNote, Calendar
+  Cpu, StickyNote, Calendar, Target
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTasks } from "@/store/tasks";
 import { useAuth } from "@/contexts/AuthContext";
 
-export type View = "today" | "upcoming" | "board" | "all" | "notes" | "commands" | "settings" | "scratchpad" | string;
+export type View = "today" | "upcoming" | "board" | "all" | "notes" | "commands" | "settings" | "scratchpad" | "goals" | string;
 
 interface Props {
   view: View;
@@ -94,6 +94,7 @@ export function FlowSidebar({ view, onChange }: Props) {
           <NavItem id="board" label="Board" icon={KanbanSquare} />
           <NavItem id="all" label="Tasks" icon={ListChecks} count={tasks.filter((t) => !t.projectId && t.status !== "done").length} />
           <NavItem id="upcoming" label="Upcoming" icon={CalendarDays} count={todayCount + overdueCount} />
+          <NavItem id="goals" label="Goals & OKRs" icon={Target} />
           <NavItem id="notes" label="Notes" icon={NotebookPen} />
           <NavItem id="commands" label="Commands" icon={Terminal} />
           <NavItem id="scratchpad" label="Scratchpad" icon={StickyNote} />
