@@ -172,13 +172,22 @@ const Index = ({ initialView = "today" }: Props) => {
           </button>
         </header>
 
-        <div className="flex-1 overflow-y-auto scrollbar-thin px-8 pb-10 pt-6">
-          {renderView()}
+        <div className="flex-1 flex overflow-hidden">
+          <div className="flex-1 overflow-y-auto scrollbar-thin px-8 pb-10 pt-6">
+            {renderView()}
+          </div>
+          {selectedTaskId && (
+            <div className="hidden lg:block w-[400px] shrink-0 h-full overflow-y-auto bg-card">
+              <TaskDetail isInline />
+            </div>
+          )}
         </div>
       </main>
 
       <QuickAdd />
-      <TaskDetail />
+      <div className="lg:hidden">
+        <TaskDetail />
+      </div>
       <CommandPalette
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}

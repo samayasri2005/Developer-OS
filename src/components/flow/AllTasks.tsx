@@ -1,9 +1,11 @@
 import { useMemo, useState } from "react";
-import { Search, Folder as FolderIcon, Flag, CalendarDays, ChevronDown, Circle, CheckCircle2, Clock } from "lucide-react";
+import { Search, Folder as FolderIcon, Flag, CalendarDays, ChevronDown, Circle, CheckCircle2, Clock, Plus, CornerDownLeft, ListChecks } from "lucide-react";
 import { format, parseISO, isToday, isPast, isFuture } from "date-fns";
 import { useTasks, isOverdue, isDueToday } from "@/store/tasks";
 import type { Priority, Task } from "@/lib/types";
+import { parseQuickInput } from "@/lib/parser";
 import { cn } from "@/lib/utils";
+import { TaskRow } from "./TaskRow";
 
 interface Props {
   folderFilter?: string;
@@ -69,7 +71,7 @@ export function AllTasks({ folderFilter, scope = "all" }: Props) {
     : `Reviewing ${activeCount} active task${activeCount === 1 ? "" : "s"}${folder ? " in this folder" : " across all folders"}.`;
 
   return (
-    <div className="space-y-6 max-w-[1200px]">
+    <div className="space-y-6 w-full">
       <header className="flex items-end justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-[24px] leading-tight font-semibold tracking-tight">
@@ -129,6 +131,10 @@ export function AllTasks({ folderFilter, scope = "all" }: Props) {
             No tasks found.
           </div>
         )}
+        
+        <div className="pt-2">
+          <InlineQuickAdd defaultFolder={folderFilter} defaultScope={scope} />
+        </div>
       </div>
     </div>
   );
@@ -145,65 +151,9 @@ function SectionGroup({ title, tone, tasks }: { title: string; tone: "danger" | 
         {title}
       </div>
       <div className="space-y-1.5">
-        {tasks.map((t) => <ListRow key={t.id} task={t} tone={tone} />)}
+        {tasks.map((t) => <TaskRow key={t.id} task={t} tone={tone} />)}
       </div>
     </section>
-  );
-}
-
-function ListRow({ task, tone }: { task: Task; tone: "danger" | "accent" | "muted" }) {
-  const selectTask = useTasks((s) => s.selectTask);
-  const toggleDone = useTasks((s) => s.toggleDone);
-  const folders = useTasks((s) => s.folders);
-  const folder = folders.find((f) => f.id === task.folder);
-  const isDone = task.status === "done";
-  const overdue = isOverdue(task);
-  const dueIsToday = task.dueDate && isToday(parseISO(task.dueDate));
-
-  const sideBar = tone === "danger" ? "bg-priority-high" : tone === "accent" ? "bg-priority-medium" : "bg-border";
-
-  return (
-    <div
-      onClick={() => selectTask(task.id)}
-      className="group relative flex items-center gap-3 pl-3.5 pr-3 py-2.5 rounded-md hover:bg-secondary/60 cursor-pointer overflow-hidden border border-transparent hover:border-border transition-all"
-    >
-      <div className={cn("absolute left-0 top-2 bottom-2 w-[2px] rounded-full", sideBar)} />
-      <button
-        onClick={(e) => { e.stopPropagation(); toggleDone(task.id); }}
-        className="text-muted-foreground/60 hover:text-status-done transition-colors shrink-0"
-      >
-        {isDone ? <CheckCircle2 className="h-4 w-4 text-status-done" /> : <Circle className="h-4 w-4" />}
-      </button>
-      <div className="flex-1 min-w-0">
-        <div className={cn("text-[13px] font-medium", isDone && "line-through text-muted-foreground")}>{task.title}</div>
-        <div className="mt-0.5 flex items-center gap-2.5 text-[11px] text-muted-foreground">
-          {task.dueDate && (
-            <span className={cn("inline-flex items-center gap-1", overdue ? "text-priority-high" : dueIsToday ? "text-accent" : "")}>
-              <Clock className="h-3 w-3" />
-              {dueIsToday ? format(parseISO(task.dueDate), "h:mm a") : overdue ? "Yesterday" : format(parseISO(task.dueDate), "EEE, MMM d")}
-            </span>
-          )}
-          {folder && (
-            <span className="inline-flex items-center gap-1">
-              <FolderIcon className="h-3 w-3" /> {folder.name}
-            </span>
-          )}
-        </div>
-      </div>
-      <div className="flex items-center gap-1.5 shrink-0">
-        <span className={cn(
-          "text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded",
-          priorityBadge[task.priority]
-        )}>
-          {task.priority === "medium" ? "MED" : task.priority}
-        </span>
-        {task.tags.slice(0, 1).map((t) => (
-          <span key={t} className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-secondary text-muted-foreground">
-            {t}
-          </span>
-        ))}
-      </div>
-    </div>
   );
 }
 
@@ -246,5 +196,87 @@ function FilterChip({
         </div>
       )}
     </div>
+  );
+}
+
+function InlineQuickAdd({ defaultFolder, defaultScope }: { defaultFolder?: string; defaultScope?: string }) {
+  const addTask = useTasks((s) => s.addTask);
+  const folders = useTasks((s) => s.folders);
+  const addFolder = useTasks((s) => s.addFolder);
+  const [value, setValue] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!value.trim()) return;
+    
+    const parsed = parseQuickInput(value);
+    if (!parsed?.title) return;
+
+    let folderId = parsed.folder;
+    if (folderId && !folders.find((f) => f.id === folderId || f.name.toLowerCase() === folderId)) {
+      addFolder(folderId);
+    } else if (folderId) {
+      const found = folders.find((f) => f.id === folderId || f.name.toLowerCase() === folderId);
+      if (found) folderId = found.id;
+    }
+
+    if (!folderId && defaultFolder) {
+      folderId = defaultFolder;
+    }
+
+    let dueDate = parsed.dueDate;
+    if (!dueDate && defaultScope === "today") {
+      dueDate = new Date().toISOString();
+    }
+
+    addTask({
+      title: parsed.title,
+      tags: parsed.tags,
+      priority: parsed.priority,
+      recurrence: parsed.recurrence,
+      folder: folderId ?? folders[0]?.id,
+      dueDate: dueDate,
+    });
+    
+    setValue("");
+    setIsOpen(false);
+  };
+
+  if (!isOpen) {
+    return (
+      <button
+        onClick={() => setIsOpen(true)}
+        className="group flex items-center gap-3 w-full p-2.5 rounded-lg hover:bg-secondary/50 transition-colors text-muted-foreground hover:text-foreground"
+      >
+        <div className="h-5 w-5 rounded-full border border-dashed border-muted-foreground group-hover:border-primary flex items-center justify-center transition-colors">
+          <Plus className="h-3 w-3" />
+        </div>
+        <span className="text-[13px] font-medium">Add task...</span>
+      </button>
+    );
+  }
+
+  return (
+    <form onSubmit={submit} className="relative mt-2">
+      <input
+        autoFocus
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={() => { if (!value.trim()) setIsOpen(false); }}
+        placeholder='e.g. "Read 15 mins /daily #self p2"'
+        className="w-full text-[13px] font-medium bg-secondary/50 border border-border rounded-lg px-3 py-2.5 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all placeholder:text-muted-foreground/60"
+      />
+      <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
+        {value.trim() && (
+          <button
+            type="submit"
+            className="h-6 px-2.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors inline-flex items-center gap-1"
+          >
+            Add <CornerDownLeft className="h-3 w-3" />
+          </button>
+        )}
+      </div>
+    </form>
   );
 }

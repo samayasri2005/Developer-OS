@@ -31,7 +31,7 @@ const statusPill: Record<Status, string> = {
   done: "bg-status-done/10 text-status-done border-status-done/30",
 };
 
-export function TaskDetail() {
+export function TaskDetail({ isInline }: { isInline?: boolean }) {
   const id = useTasks((s) => s.selectedTaskId);
   const tasks = useTasks((s) => s.tasks);
   const folders = useTasks((s) => s.folders);
@@ -78,8 +78,17 @@ export function TaskDetail() {
 
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-foreground/10 backdrop-blur-[2px] animate-fade-in" onClick={close} />
-      <aside className="fixed right-0 top-0 z-50 h-full w-full max-w-[440px] bg-card border-l border-border shadow-elev animate-slide-in-right flex flex-col">
+      {!isInline && (
+        <div className="fixed inset-0 z-40 bg-foreground/10 backdrop-blur-[2px] animate-fade-in" onClick={close} />
+      )}
+      <aside
+        className={cn(
+          "bg-card flex flex-col",
+          isInline
+            ? "h-full w-full border-l border-border"
+            : "fixed right-0 top-0 z-50 h-full w-full max-w-[440px] border-l border-border shadow-elev animate-slide-in-right"
+        )}
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
           <div className="text-[13px] font-semibold tracking-tight text-muted-foreground">Task details</div>

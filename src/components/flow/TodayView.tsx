@@ -8,6 +8,7 @@ import { isDueToday, isOverdue, useTasks } from "@/store/tasks";
 import { cn } from "@/lib/utils";
 import type { Priority } from "@/lib/types";
 import { toast } from "sonner";
+import { TaskRow } from "./TaskRow";
 
 const priorityPill: Record<Priority, string> = {
   high: "bg-priority-high/10 text-priority-high border-priority-high/20",
@@ -370,48 +371,9 @@ export function TodayView() {
                   No tasks scheduled for today. Add one above!
                 </div>
               ) : (
-                todays.map((t) => {
-                  const isDone = t.status === "done";
-                  return (
-                    <div
-                      key={t.id}
-                      onClick={() => selectTask(t.id)}
-                      className="group flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-secondary cursor-pointer transition-colors"
-                    >
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleDone(t.id);
-                        }}
-                        className="shrink-0"
-                        aria-label="Toggle task status"
-                      >
-                        {isDone ? (
-                          <CheckCircle2 className="h-4.5 w-4.5 text-status-done" />
-                        ) : (
-                          <Circle className="h-4.5 w-4.5 text-muted-foreground/60 hover:text-primary transition-colors" />
-                        )}
-                      </button>
-                      <span className={cn(
-                        "flex-1 text-xs truncate",
-                        isDone && "line-through text-muted-foreground"
-                      )}>
-                        {t.title}
-                      </span>
-                      {t.projectId && (
-                        <span className="text-[10px] text-cyan-500 bg-cyan-500/10 px-1.5 py-0.5 rounded font-mono shrink-0">
-                          {projects.find((p) => p.id === t.projectId)?.name || "project"}
-                        </span>
-                      )}
-                      <span className={cn(
-                        "shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded border capitalize",
-                        priorityPill[t.priority]
-                      )}>
-                        {t.priority}
-                      </span>
-                    </div>
-                  );
-                })
+                todays.map((t) => (
+                  <TaskRow key={t.id} task={t} />
+                ))
               )}
             </div>
           </section>
